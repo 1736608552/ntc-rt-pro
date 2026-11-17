@@ -7,9 +7,13 @@
     <item
         android:id="@+id/nav_table"
         android:icon="@drawable/ic_nav_table"
-        android:title="阻值特性表" />
+        android:title="特性表" />
     <item
         android:id="@+id/nav_tools"
         android:icon="@drawable/ic_nav_lab"
-        android:title="反推与仿真" />
+        android:title="反推仿真" />
+    <item
+        android:id="@+id/nav_silver"
+        android:icon="@drawable/ic_nav_silver"
+        android:title="银面尺寸" />
 </menu>

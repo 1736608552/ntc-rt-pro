@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Bundle
@@ -11,6 +12,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -21,6 +23,7 @@ import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import com.ntcrt.pro.databinding.ActivityMainBinding
 import java.io.File
 import java.io.FileOutputStream
@@ -42,6 +45,12 @@ class MainActivity : AppCompatActivity() {
     private var isQuickSyncing = false
     private var ntcOnTop = true
 
+    private var silverMode: SilverShapeMode = SilverShapeMode.CIRCLE
+    private var isSilverUpdating = false
+    private var autoSilverCircleField: Int? = null
+    private var autoSilverSquareField: Int? = null
+    private var lastSilverCopyText: String = ""
+
     private val mainHandler = Handler(Looper.getMainLooper())
     private val autoApplyRunnable = Runnable { applyFromQuickInputs(hideKeyboard = false, silentError = true) }
     private val snapshotRunnable = Runnable { SavedCurveStore.recordRecentSnapshot(this, currentSpec) }
@@ -60,6 +69,7 @@ class MainActivity : AppCompatActivity() {
         setupCurveControls()
         setupTableSection()
         setupToolsSection()
+        setupSilverSection()
         setupUpdateFeature()
 
         syncQuickInputsFromSpec(currentSpec)
@@ -114,6 +124,7 @@ class MainActivity : AppCompatActivity() {
             binding.pageCurve.visibility = if (item.itemId == R.id.nav_curve) View.VISIBLE else View.GONE
             binding.pageTable.visibility = if (item.itemId == R.id.nav_table) View.VISIBLE else View.GONE
             binding.pageTools.visibility = if (item.itemId == R.id.nav_tools) View.VISIBLE else View.GONE
+            binding.pageSilver.visibility = if (item.itemId == R.id.nav_silver) View.VISIBLE else View.GONE
             true
         }
     }
@@ -949,5 +960,240 @@ class MainActivity : AppCompatActivity() {
         } else {
             String.format(Locale.US, "%.4f", v).trimEnd('0').trimEnd('.')
         }
+    }
+
+    // ==================== 银面与边长计算模块（融合 wire-calc-app） ====================
+    private fun setupSilverSection() {
+        val sp = getSharedPreferences("ntc_silver_prefs", MODE_PRIVATE)
+        silverMode = if (sp.getString("mode", "CIRCLE") == "SQUARE") {
+            SilverShapeMode.SQUARE
+        } else {
+            SilverShapeMode.CIRCLE
+        }
+
+        val watcher: (Int) -> Unit = { idx ->
+            if (!isSilverUpdating) {
+                if (silverMode == SilverShapeMode.CIRCLE) {
+                    if (autoSilverCircleField == idx) autoSilverCircleField = null
+                } else {
+                    if (autoSilverSquareField == idx) autoSilverSquareField = null
+                }
+                saveSilverCurrentInputs()
+                recalculateSilver()
+            }
+        }
+
+        binding.etSilverR1.doAfterTextChanged { watcher(1) }
+        binding.etSilverSize1.doAfterTextChanged { watcher(2) }
+        binding.etSilverR2.doAfterTextChanged { watcher(3) }
+        binding.etSilverSize2.doAfterTextChanged { watcher(4) }
+
+        binding.btnSilverModeCircle.setOnClickListener {
+            if (silverMode != SilverShapeMode.CIRCLE) {
+                silverMode = SilverShapeMode.CIRCLE
+                sp.edit().putString("mode", "CIRCLE").apply()
+                applySilverModeUi()
+            }
+        }
+
+        binding.btnSilverModeSquare.setOnClickListener {
+            if (silverMode != SilverShapeMode.SQUARE) {
+                silverMode = SilverShapeMode.SQUARE
+                sp.edit().putString("mode", "SQUARE").apply()
+                applySilverModeUi()
+            }
+        }
+
+        binding.btnSilverClear.setOnClickListener {
+            isSilverUpdating = true
+            if (silverMode == SilverShapeMode.CIRCLE) autoSilverCircleField = null else autoSilverSquareField = null
+            binding.etSilverR1.setText("")
+            binding.etSilverSize1.setText("")
+            binding.etSilverR2.setText("")
+            binding.etSilverSize2.setText("")
+            resetSilverFieldStyles()
+            isSilverUpdating = false
+            saveSilverCurrentInputs()
+            recalculateSilver()
+            Toast.makeText(this, "已清空当前输入", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.btnSilverCopy.setOnClickListener {
+            if (lastSilverCopyText.isBlank()) {
+                Toast.makeText(this, "请先输入 3 项完成计算", Toast.LENGTH_SHORT).show()
+            } else {
+                copyToClipboard("NTC_Silver_Calc", lastSilverCopyText)
+                Toast.makeText(this, "已复制计算结果: $lastSilverCopyText", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        binding.btnSilverSendToCurve.setOnClickListener {
+            val r2 = binding.etSilverR2.text?.toString()?.toDoubleOrNull()?.takeIf { it > 0.0 }
+            val r1 = binding.etSilverR1.text?.toString()?.toDoubleOrNull()?.takeIf { it > 0.0 }
+            val targetR = r2 ?: r1
+            if (targetR == null) {
+                Toast.makeText(this, "请先填入或算出有效的阻值 (Ω)", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val updated = currentSpec.copy(r25Ohm = targetR)
+            syncQuickInputsFromSpec(updated)
+            applySpec(updated)
+            binding.bottomNav.selectedItemId = R.id.nav_curve
+            Toast.makeText(
+                this,
+                "已将 R25=${SilverCalcEngine.formatNumber(targetR)} Ω 送入特性曲线",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+
+        applySilverModeUi()
+    }
+
+    private fun applySilverModeUi() {
+        val isCircle = silverMode == SilverShapeMode.CIRCLE
+        if (isCircle) {
+            binding.btnSilverModeCircle.setBackgroundColor(Color.parseColor("#1A00E5FF"))
+            binding.btnSilverModeCircle.setTextColor(Color.parseColor("#00E5FF"))
+            binding.btnSilverModeSquare.setBackgroundColor(Color.TRANSPARENT)
+            binding.btnSilverModeSquare.setTextColor(Color.parseColor("#94A3B8"))
+            binding.layoutSilverSize1.hint = "银面直径 r₁ (mm)"
+            binding.layoutSilverSize2.hint = "银面直径 r₂ (mm)"
+            binding.tvSilverGroup1Title.text = "原始圆片规格（R₁ × r₁² = R₂ × r₂²）"
+            binding.tvSilverGroup2Title.text = "目标圆片规格（任意填 3 项，留空项自动算出）"
+        } else {
+            binding.btnSilverModeSquare.setBackgroundColor(Color.parseColor("#1A00E5FF"))
+            binding.btnSilverModeSquare.setTextColor(Color.parseColor("#00E5FF"))
+            binding.btnSilverModeCircle.setBackgroundColor(Color.TRANSPARENT)
+            binding.btnSilverModeCircle.setTextColor(Color.parseColor("#94A3B8"))
+            binding.layoutSilverSize1.hint = "圆半径 1 · r₁ (mm)"
+            binding.layoutSilverSize2.hint = "方片边长 · a (mm)"
+            binding.tvSilverGroup1Title.text = "原始圆片规格（边长 = √(R₁ × πr₁² / R₂)）"
+            binding.tvSilverGroup2Title.text = "目标方片规格（任意填 3 项，留空项自动算出）"
+        }
+
+        // 从各自持久化存储恢复上次输入
+        val sp = getSharedPreferences("ntc_silver_prefs", MODE_PRIVATE)
+        val keyPrefix = if (isCircle) "c_" else "s_"
+        isSilverUpdating = true
+        autoSilverCircleField = null
+        autoSilverSquareField = null
+        resetSilverFieldStyles()
+        binding.etSilverR1.setText(sp.getString("${keyPrefix}r1", "") ?: "")
+        binding.etSilverSize1.setText(sp.getString("${keyPrefix}s1", "") ?: "")
+        binding.etSilverR2.setText(sp.getString("${keyPrefix}r2", "") ?: "")
+        binding.etSilverSize2.setText(sp.getString("${keyPrefix}s2", "") ?: "")
+        isSilverUpdating = false
+        recalculateSilver()
+    }
+
+    private fun saveSilverCurrentInputs() {
+        val sp = getSharedPreferences("ntc_silver_prefs", MODE_PRIVATE)
+        val keyPrefix = if (silverMode == SilverShapeMode.CIRCLE) "c_" else "s_"
+        val autoIdx = if (silverMode == SilverShapeMode.CIRCLE) autoSilverCircleField else autoSilverSquareField
+        sp.edit()
+            .putString("${keyPrefix}r1", if (autoIdx == 1) "" else binding.etSilverR1.text?.toString() ?: "")
+            .putString("${keyPrefix}s1", if (autoIdx == 2) "" else binding.etSilverSize1.text?.toString() ?: "")
+            .putString("${keyPrefix}r2", if (autoIdx == 3) "" else binding.etSilverR2.text?.toString() ?: "")
+            .putString("${keyPrefix}s2", if (autoIdx == 4) "" else binding.etSilverSize2.text?.toString() ?: "")
+            .apply()
+    }
+
+    private fun recalculateSilver() {
+        val sR1 = binding.etSilverR1.text?.toString()?.trim() ?: ""
+        val sS1 = binding.etSilverSize1.text?.toString()?.trim() ?: ""
+        val sR2 = binding.etSilverR2.text?.toString()?.trim() ?: ""
+        val sS2 = binding.etSilverSize2.text?.toString()?.trim() ?: ""
+
+        val vR1 = sR1.toDoubleOrNull()
+        val vS1 = sS1.toDoubleOrNull()
+        val vR2 = sR2.toDoubleOrNull()
+        val vS2 = sS2.toDoubleOrNull()
+
+        fun isInvalid(str: String, num: Double?): Boolean = str.isNotEmpty() && (num == null || num <= 0.0)
+        if (isInvalid(sR1, vR1) || isInvalid(sS1, vS1) || isInvalid(sR2, vR2) || isInvalid(sS2, vS2)) {
+            binding.tvSilverResultTitle.text = "⚠️ 输入提示"
+            binding.tvSilverResultValue.text = "数值必须大于 0"
+            binding.tvSilverResultFormula.text = "请检查填写的数字格式。"
+            lastSilverCopyText = ""
+            binding.silverGeometryView.updateBlueprint(silverMode, vR1, vS1, vR2, vS2)
+            return
+        }
+
+        val currentAuto = if (silverMode == SilverShapeMode.CIRCLE) autoSilverCircleField else autoSilverSquareField
+        val res = if (silverMode == SilverShapeMode.CIRCLE) {
+            SilverCalcEngine.solveCircle(vR1, vS1, vR2, vS2, currentAuto)
+        } else {
+            SilverCalcEngine.solveSquare(vR1, vS1, vR2, vS2, currentAuto)
+        }
+
+        binding.tvSilverResultTitle.text = res.title
+        binding.tvSilverResultValue.text = res.displayValue
+        binding.tvSilverResultFormula.text = res.formulaText
+
+        isSilverUpdating = true
+        resetSilverFieldStyles()
+        if (res.solvedFieldIndex != null && res.formattedValue != null) {
+            if (silverMode == SilverShapeMode.CIRCLE) {
+                autoSilverCircleField = res.solvedFieldIndex
+            } else {
+                autoSilverSquareField = res.solvedFieldIndex
+            }
+            when (res.solvedFieldIndex) {
+                1 -> {
+                    binding.etSilverR1.setText(res.formattedValue)
+                    highlightSilverCalculated(binding.layoutSilverR1, binding.etSilverR1)
+                }
+                2 -> {
+                    binding.etSilverSize1.setText(res.formattedValue)
+                    highlightSilverCalculated(binding.layoutSilverSize1, binding.etSilverSize1)
+                }
+                3 -> {
+                    binding.etSilverR2.setText(res.formattedValue)
+                    highlightSilverCalculated(binding.layoutSilverR2, binding.etSilverR2)
+                }
+                4 -> {
+                    binding.etSilverSize2.setText(res.formattedValue)
+                    highlightSilverCalculated(binding.layoutSilverSize2, binding.etSilverSize2)
+                }
+            }
+            lastSilverCopyText = "${res.displayValue}\n${res.formulaText}"
+        } else {
+            if (currentAuto != null && res.filledCount < 3) {
+                when (currentAuto) {
+                    1 -> binding.etSilverR1.setText("")
+                    2 -> binding.etSilverSize1.setText("")
+                    3 -> binding.etSilverR2.setText("")
+                    4 -> binding.etSilverSize2.setText("")
+                }
+            }
+            if (silverMode == SilverShapeMode.CIRCLE) autoSilverCircleField = null else autoSilverSquareField = null
+            lastSilverCopyText = if (res.filledCount == 4) "${res.displayValue}\n${res.formulaText}" else ""
+        }
+        isSilverUpdating = false
+
+        // 实时刷新动态几何蓝图
+        val finalR1 = binding.etSilverR1.text?.toString()?.toDoubleOrNull()
+        val finalS1 = binding.etSilverSize1.text?.toString()?.toDoubleOrNull()
+        val finalR2 = binding.etSilverR2.text?.toString()?.toDoubleOrNull()
+        val finalS2 = binding.etSilverSize2.text?.toString()?.toDoubleOrNull()
+        binding.silverGeometryView.updateBlueprint(silverMode, finalR1, finalS1, finalR2, finalS2)
+    }
+
+    private fun highlightSilverCalculated(layout: TextInputLayout, editText: EditText) {
+        layout.helperText = "✨ 自动计算"
+        layout.setHelperTextColor(ColorStateList.valueOf(Color.parseColor("#10B981")))
+        editText.setTextColor(Color.parseColor("#10B981"))
+    }
+
+    private fun resetSilverFieldStyles() {
+        val textPrimary = Color.parseColor("#F8FAFC")
+        binding.layoutSilverR1.helperText = null
+        binding.layoutSilverSize1.helperText = null
+        binding.layoutSilverR2.helperText = null
+        binding.layoutSilverSize2.helperText = null
+        binding.etSilverR1.setTextColor(textPrimary)
+        binding.etSilverSize1.setTextColor(textPrimary)
+        binding.etSilverR2.setTextColor(textPrimary)
+        binding.etSilverSize2.setTextColor(textPrimary)
     }
 }

@@ -51,7 +51,7 @@
                     android:fontFamily="monospace"
                     android:paddingHorizontal="8dp"
                     android:paddingVertical="2dp"
-                    android:text="v1.3.0"
+                    android:text="v1.4.0"
                     android:textColor="@color/lab_cyan"
                     android:textSize="10.5sp"
                     android:textStyle="bold" />
@@ -1119,6 +1119,288 @@
             </LinearLayout>
         </ScrollView>
 
+        <!-- ================= 页面 4：银面与边长计算（融合 wire-calc-app） ================= -->
+        <ScrollView
+            android:id="@+id/pageSilver"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <!-- 模式切换与清空栏 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnSilverModeCircle"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_marginEnd="4dp"
+                        android:layout_weight="1"
+                        android:backgroundTint="@color/lab_cyan_dim"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:maxLines="1"
+                        android:paddingHorizontal="6dp"
+                        android:text="⚪ 圆片⇄圆片"
+                        android:textColor="@color/lab_cyan"
+                        android:textSize="12sp"
+                        app:cornerRadius="9dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnSilverModeSquare"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_marginHorizontal="4dp"
+                        android:layout_weight="1"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:maxLines="1"
+                        android:paddingHorizontal="6dp"
+                        android:text="⬜ 圆片⇄方片"
+                        android:textColor="@color/lab_text_secondary"
+                        android:textSize="12sp"
+                        app:cornerRadius="9dp"
+                        app:strokeColor="@color/lab_border" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnSilverClear"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:layout_marginStart="4dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minWidth="0dp"
+                        android:paddingHorizontal="12dp"
+                        android:text="清空"
+                        android:textColor="@color/lab_rose"
+                        android:textSize="12sp"
+                        app:cornerRadius="9dp"
+                        app:strokeColor="@color/lab_border" />
+                </LinearLayout>
+
+                <!-- 动态几何比例蓝图 -->
+                <com.ntcrt.pro.SilverGeometryView
+                    android:id="@+id/silverGeometryView"
+                    android:layout_width="match_parent"
+                    android:layout_height="136dp"
+                    android:layout_marginTop="10dp" />
+
+                <!-- 2x2 精密感应输入矩阵 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/bg_lab_card"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <TextView
+                        android:id="@+id/tvSilverGroup1Title"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="原始规格 1（输入任意 3 项，第 4 项自动算出）"
+                        android:textColor="@color/lab_cyan"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/layoutSilverR1"
+                            style="@style/LabInputLayout"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="6dp"
+                            android:layout_weight="1"
+                            android:hint="阻值 1 · R₁ (Ω)"
+                            app:helperTextEnabled="true">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etSilverR1"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:inputType="numberDecimal"
+                                android:textColor="@color/lab_text_primary"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/layoutSilverSize1"
+                            style="@style/LabInputLayout"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="6dp"
+                            android:layout_weight="1"
+                            android:hint="银面直径 r₁ (mm)"
+                            app:helperTextEnabled="true">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etSilverSize1"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:inputType="numberDecimal"
+                                android:textColor="@color/lab_text_primary"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+                        </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tvSilverGroup2Title"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="目标规格 2（圆片目标直径 / 方片目标边长）"
+                        android:textColor="@color/lab_amber"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/layoutSilverR2"
+                            style="@style/LabInputLayout"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="6dp"
+                            android:layout_weight="1"
+                            android:hint="阻值 2 · R₂ (Ω)"
+                            app:helperTextEnabled="true">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etSilverR2"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:inputType="numberDecimal"
+                                android:textColor="@color/lab_text_primary"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/layoutSilverSize2"
+                            style="@style/LabInputLayout"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="6dp"
+                            android:layout_weight="1"
+                            android:hint="银面直径 r₂ (mm)"
+                            app:helperTextEnabled="true">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etSilverSize2"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:inputType="numberDecimal"
+                                android:textColor="@color/lab_text_primary"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+                        </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- HUD 公式推导与联动结果卡片 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/bg_hud_card"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <TextView
+                        android:id="@+id/tvSilverResultTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="待输入"
+                        android:textColor="@color/lab_emerald"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvSilverResultValue"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:fontFamily="monospace"
+                        android:text="输入任意 3 个数，第 4 项自动出结果"
+                        android:textColor="@color/lab_text_primary"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvSilverResultFormula"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:fontFamily="monospace"
+                        android:lineSpacingExtra="3dp"
+                        android:textColor="@color/lab_text_secondary"
+                        android:textSize="11.5sp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnSilverCopy"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="34dp"
+                            android:layout_marginEnd="6dp"
+                            android:layout_weight="1"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:text="复制计算结果"
+                            android:textColor="@color/lab_emerald"
+                            android:textSize="11.5sp"
+                            app:cornerRadius="8dp"
+                            app:strokeColor="@color/lab_border" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnSilverSendToCurve"
+                            style="@style/Widget.Material3.Button.TonalButton"
+                            android:layout_width="0dp"
+                            android:layout_height="34dp"
+                            android:layout_marginStart="6dp"
+                            android:layout_weight="1"
+                            android:backgroundTint="@color/lab_cyan_dim"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:text="用 R₂ 画 R-T 曲线"
+                            android:textColor="@color/lab_cyan"
+                            android:textSize="11.5sp"
+                            app:cornerRadius="8dp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+            </LinearLayout>
+        </ScrollView>
+
     </FrameLayout>
 
     <View
@@ -1134,6 +1416,7 @@
         app:itemActiveIndicatorStyle="@null"
         app:itemIconTint="@color/lab_cyan"
         app:itemTextColor="@color/lab_text_primary"
+        app:labelVisibilityMode="labeled"
         app:menu="@menu/menu_bottom_nav" />
 
 </LinearLayout>

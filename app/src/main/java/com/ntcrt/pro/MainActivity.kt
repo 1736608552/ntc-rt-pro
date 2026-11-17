@@ -45,6 +45,7 @@ class MainActivity : AppCompatActivity() {
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val autoApplyRunnable = Runnable { applyFromQuickInputs(hideKeyboard = false, silentError = true) }
+    private val snapshotRunnable = Runnable { SavedCurveStore.recordRecentSnapshot(this, currentSpec) }
     private var cachedUpdateInfo: RemoteUpdateInfo? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -68,6 +69,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         mainHandler.removeCallbacks(autoApplyRunnable)
+        mainHandler.removeCallbacks(snapshotRunnable)
         super.onDestroy()
     }
 
@@ -210,13 +212,17 @@ class MainActivity : AppCompatActivity() {
         binding.btnToggleScale.setOnClickListener {
             val next = !binding.ntcCurveView.useLogScale
             binding.ntcCurveView.useLogScale = next
-            binding.btnToggleScale.text = if (next) "坐标: 对数" else "坐标: 线性"
+            binding.btnToggleScale.text = if (next) "坐标:对数" else "坐标:线性"
         }
 
         binding.btnToggleBand.setOnClickListener {
             val next = !binding.ntcCurveView.showToleranceBand
             binding.ntcCurveView.showToleranceBand = next
-            binding.btnToggleBand.text = if (next) "公差: 开" else "公差: 关"
+            binding.btnToggleBand.text = if (next) "公差:开" else "公差:关"
+        }
+
+        binding.btnSaveCurve.setOnClickListener {
+            showSaveCurveDialog()
         }
 
         binding.btnToggleCompare.setOnClickListener {
@@ -224,7 +230,7 @@ class MainActivity : AppCompatActivity() {
                 showCompareSelectorDialog()
             } else {
                 binding.ntcCurveView.showCompareCurve = false
-                binding.btnToggleCompare.text = "对比: 关"
+                binding.btnToggleCompare.text = "对比:关"
                 binding.btnToggleCompare.setTextColor(Color.parseColor("#94A3B8"))
                 binding.tvHudCompare.visibility = View.GONE
                 binding.ntcCurveView.selectTemperature(
@@ -234,39 +240,203 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun showCompareSelectorDialog() {
-        val options = arrayOf(
-            "同 R25 对比 B=3950K",
-            "同 R25 对比 B=3435K",
-            "同 R25 对比 B=4300K",
-            "同 R25 对比 B=4500K"
-        )
+    private fun showSaveCurveDialog(onSaved: (() -> Unit)? = null) {
+        val density = resources.displayMetrics.density
+        val pad = (16 * density).toInt()
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad / 2, pad, 0)
+        }
+        val etName = TextInputEditText(this).apply {
+            hint = "留空则自动命名：${SavedCurveStore.defaultTitleFor(currentSpec)}"
+            setTextColor(Color.parseColor("#F8FAFC"))
+            setHintTextColor(Color.parseColor("#64748B"))
+            textSize = 13.5f
+        }
+        container.addView(etName)
+
         AlertDialog.Builder(this)
-            .setTitle("选择叠加对比曲线")
-            .setItems(options) { _, which ->
-                val targetB = when (which) {
-                    0 -> 3950.0
-                    1 -> 3435.0
-                    2 -> 4300.0
-                    else -> 4500.0
-                }
-                compareSpec = currentSpec.copy(bValue = targetB)
-                comparePoints = NtcMathEngine.generateTable(compareSpec)
-                binding.ntcCurveView.showCompareCurve = true
-                binding.ntcCurveView.setCurveData(currentPoints, comparePoints)
-                binding.btnToggleCompare.text = "对比: 开"
-                binding.btnToggleCompare.setTextColor(Color.parseColor("#F43F5E"))
+            .setTitle("保存当前计算曲线")
+            .setMessage("保存后可在「对比」列表中随时调出叠加比对或重新载入。")
+            .setView(container)
+            .setPositiveButton("保存") { _, _ ->
+                val rec = SavedCurveStore.savePinned(this, currentSpec, etName.text?.toString() ?: "")
+                Toast.makeText(this, "已保存：${rec.title}", Toast.LENGTH_SHORT).show()
+                onSaved?.invoke()
             }
             .setNegativeButton("取消", null)
             .show()
     }
 
+    private fun enableCompareSpec(targetSpec: NtcSpec) {
+        compareSpec = targetSpec.copy(
+            tMin = currentSpec.tMin,
+            tMax = currentSpec.tMax,
+            tStep = currentSpec.tStep
+        )
+        comparePoints = NtcMathEngine.generateTable(compareSpec)
+        binding.ntcCurveView.showCompareCurve = true
+        binding.ntcCurveView.setCurveData(currentPoints, comparePoints)
+        binding.btnToggleCompare.text = "对比:开"
+        binding.btnToggleCompare.setTextColor(Color.parseColor("#F43F5E"))
+    }
+
+    private fun showCompareSelectorDialog() {
+        val view = layoutInflater.inflate(R.layout.dialog_compare_records, null)
+        val btnSaveCur = view.findViewById<View>(R.id.btnDlgSaveCurrent)
+        val etCustomR25 = view.findViewById<TextInputEditText>(R.id.etCmpCustomR25)
+        val etCustomB = view.findViewById<TextInputEditText>(R.id.etCmpCustomB)
+        val btnApplyCustom = view.findViewById<View>(R.id.btnCmpApplyCustom)
+        val tvEmpty = view.findViewById<TextView>(R.id.tvSavedRecordsEmpty)
+        val listLayout = view.findViewById<LinearLayout>(R.id.layoutSavedRecordsList)
+
+        etCustomR25.setText(trimNum(compareSpec.r25Ohm))
+        etCustomB.setText(trimNum(compareSpec.bValue))
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("选择或管理对比曲线")
+            .setView(view)
+            .setNegativeButton("关闭", null)
+            .create()
+
+        val density = resources.displayMetrics.density
+
+        fun renderRecords() {
+            listLayout.removeAllViews()
+            val records = SavedCurveStore.loadAll(this)
+            tvEmpty.visibility = if (records.isEmpty()) View.VISIBLE else View.GONE
+
+            records.forEach { rec ->
+                val card = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setBackgroundResource(R.drawable.bg_hud_card)
+                    val p = (10 * density).toInt()
+                    setPadding(p, p, p, p)
+                    val lp = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
+                    lp.bottomMargin = (8 * density).toInt()
+                    layoutParams = lp
+                }
+
+                val topRow = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                }
+                val tagView = TextView(this).apply {
+                    text = if (rec.isPinned) "已存" else "历史"
+                    textSize = 10f
+                    setBackgroundResource(if (rec.isPinned) R.drawable.bg_pill_active else R.drawable.bg_pill_idle)
+                    setTextColor(Color.parseColor(if (rec.isPinned) "#00E5FF" else "#94A3B8"))
+                    setPadding((6 * density).toInt(), (1 * density).toInt(), (6 * density).toInt(), (1 * density).toInt())
+                }
+                val titleView = TextView(this).apply {
+                    text = "  ${rec.title}"
+                    textSize = 12.5f
+                    setTextColor(Color.parseColor("#F8FAFC"))
+                    maxLines = 1
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                }
+                val timeView = TextView(this).apply {
+                    text = rec.formattedTime()
+                    textSize = 10.5f
+                    setTextColor(Color.parseColor("#64748B"))
+                }
+                topRow.addView(tagView)
+                topRow.addView(titleView)
+                topRow.addView(timeView)
+
+                val summaryView = TextView(this).apply {
+                    text = rec.summaryLine()
+                    textSize = 11f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setTextColor(Color.parseColor("#94A3B8"))
+                    val mt = (4 * density).toInt()
+                    setPadding(0, mt, 0, (6 * density).toInt())
+                }
+
+                val actionRow = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.END
+                }
+
+                fun makeActionChip(label: String, colorHex: String, onClick: () -> Unit): TextView {
+                    return TextView(this).apply {
+                        text = label
+                        textSize = 11f
+                        setTextColor(Color.parseColor(colorHex))
+                        setBackgroundResource(R.drawable.bg_pill_idle)
+                        setPadding((9 * density).toInt(), (3 * density).toInt(), (9 * density).toInt(), (3 * density).toInt())
+                        val lp = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.WRAP_CONTENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT
+                        )
+                        lp.marginStart = (6 * density).toInt()
+                        layoutParams = lp
+                        setOnClickListener { onClick() }
+                    }
+                }
+
+                if (!rec.isPinned) {
+                    actionRow.addView(makeActionChip("收藏", "#F59E0B") {
+                        SavedCurveStore.savePinned(this, rec.spec, rec.title)
+                        renderRecords()
+                    })
+                }
+                actionRow.addView(makeActionChip("载入", "#10B981") {
+                    syncQuickInputsFromSpec(rec.spec)
+                    applySpec(rec.spec)
+                    dialog.dismiss()
+                    Toast.makeText(this, "已载入为主曲线", Toast.LENGTH_SHORT).show()
+                })
+                actionRow.addView(makeActionChip("删除", "#94A3B8") {
+                    SavedCurveStore.deleteById(this, rec.id)
+                    renderRecords()
+                })
+                actionRow.addView(makeActionChip("设为对比", "#F43F5E") {
+                    enableCompareSpec(rec.spec)
+                    dialog.dismiss()
+                })
+
+                card.addView(topRow)
+                card.addView(summaryView)
+                card.addView(actionRow)
+                card.setOnClickListener {
+                    enableCompareSpec(rec.spec)
+                    dialog.dismiss()
+                }
+                listLayout.addView(card)
+            }
+        }
+
+        btnSaveCur.setOnClickListener {
+            showSaveCurveDialog { renderRecords() }
+        }
+
+        btnApplyCustom.setOnClickListener {
+            val r25 = etCustomR25.text?.toString()?.toDoubleOrNull()
+            val bVal = etCustomB.text?.toString()?.toDoubleOrNull()
+            if (r25 == null || r25 <= 0.0 || bVal == null || bVal <= 0.0) {
+                Toast.makeText(this, "请输入有效的对比 R25 和 B 值", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            enableCompareSpec(currentSpec.copy(r25Ohm = r25, bValue = bVal))
+            dialog.dismiss()
+        }
+
+        renderRecords()
+        dialog.show()
+    }
+
     private fun applySpec(spec: NtcSpec) {
         currentSpec = spec
         saveSpec(spec)
+        mainHandler.removeCallbacks(snapshotRunnable)
+        mainHandler.postDelayed(snapshotRunnable, 1500)
+
         currentPoints = NtcMathEngine.generateTable(spec)
         compareSpec = compareSpec.copy(
-            r25Ohm = spec.r25Ohm,
             tMin = spec.tMin,
             tMax = spec.tMax,
             tStep = spec.tStep

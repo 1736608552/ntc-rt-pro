@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/lab_surface">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- 快捷动作：把当前正在查看的曲线存起来 -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnDlgSaveCurrent"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:backgroundTint="@color/lab_cyan_dim"
+            android:text="+ 保存当前曲线到档案库"
+            android:textColor="@color/lab_cyan"
+            android:textSize="12.5sp"
+            app:cornerRadius="10dp" />
+
+        <!-- 自定义输入临时对比参数 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="手动输入临时对比参数："
+            android:textColor="@color/lab_text_secondary"
+            android:textSize="11.5sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/LabInputLayout"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:layout_weight="1"
+                android:hint="对比 R25 (Ω)">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etCmpCustomR25"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:inputType="numberDecimal"
+                    android:paddingVertical="8dp"
+                    android:textColor="@color/lab_text_primary"
+                    android:textSize="12.5sp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/LabInputLayout"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:layout_weight="1"
+                android:hint="对比 B 值 (K)">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etCmpCustomB"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:inputType="numberDecimal"
+                    android:paddingVertical="8dp"
+                    android:textColor="@color/lab_text_primary"
+                    android:textSize="12.5sp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCmpApplyCustom"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:minWidth="0dp"
+                android:paddingHorizontal="12dp"
+                android:text="叠加"
+                android:textColor="@color/lab_rose"
+                android:textSize="12sp"
+                app:cornerRadius="9dp"
+                app:strokeColor="@color/lab_rose" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginVertical="12dp"
+            android:background="@color/lab_border" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="已保存 &amp; 最近算出的曲线（点选即可叠加对比）："
+            android:textColor="@color/lab_text_secondary"
+            android:textSize="11.5sp" />
+
+        <TextView
+            android:id="@+id/tvSavedRecordsEmpty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center"
+            android:paddingVertical="14dp"
+            android:text="暂无已保存或历史曲线，先算出一组参数或点上方「保存」吧"
+            android:textColor="@color/lab_text_muted"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/layoutSavedRecordsList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="vertical" />
+
+    </LinearLayout>
+</ScrollView>

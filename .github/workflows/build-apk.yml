@@ -60,26 +60,26 @@ jobs:
           rm -f app/release.keystore
           mkdir -p release-apks
           APK_SRC=$(ls app/build/outputs/apk/release/*.apk | head -n 1)
-          cp "$APK_SRC" release-apks/NTC-RT-Pro-v1.1.0.apk
+          cp "$APK_SRC" release-apks/NTC-RT-Pro-v1.2.0.apk
 
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)
           if [ -n "$APKSIGNER" ]; then
-            "$APKSIGNER" verify --print-certs release-apks/NTC-RT-Pro-v1.1.0.apk
+            "$APKSIGNER" verify --print-certs release-apks/NTC-RT-Pro-v1.2.0.apk
           fi
 
-          export APK_SIZE=$(stat -c%s release-apks/NTC-RT-Pro-v1.1.0.apk)
+          export APK_SIZE=$(stat -c%s release-apks/NTC-RT-Pro-v1.2.0.apk)
           export PUB_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           python3 -c '
           import json, os
           repo = os.environ["GITHUB_REPO"]
           data = {
-              "versionCode": 2,
-              "versionName": "1.1.0",
-              "apkName": "NTC-RT-Pro-v1.1.0.apk",
+              "versionCode": 3,
+              "versionName": "1.2.0",
+              "apkName": "NTC-RT-Pro-v1.2.0.apk",
               "apkSize": int(os.environ["APK_SIZE"]),
-              "downloadUrl": f"https://github.com/{repo}/releases/download/v1.1.0/NTC-RT-Pro-v1.1.0.apk",
+              "downloadUrl": f"https://github.com/{repo}/releases/download/v1.2.0/NTC-RT-Pro-v1.2.0.apk",
               "publishedAt": os.environ["PUB_AT"],
-              "releaseNotes": "1. 移除预设按钮与底部预设摘要，改为页面顶部直接输入参数并自动保存；\n2. 启用正式 Release Keystore 签名；\n3. 新增多 CDN 加速在线更新（并发测速优选与自动容错切换）；\n4. 修复图表底部对比按钮文字换行显示问题。"
+              "releaseNotes": "1. 移除所有内置对比预设选项，新增「存曲线」与本地计算档案库；\n2. 自动保存最近计算历史，支持将之前算过的任意曲线一键设为对比或重新载入；\n3. 支持在对比窗口直接输入自定义 R25 与 B 值临时对比；\n4. 支持多 CDN 在线一键升级。"
           }
           with open("release-apks/version.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
@@ -90,31 +90,28 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NTC-RT-Pro-APK-v1.1.0
+          name: NTC-RT-Pro-APK-v1.2.0
           path: release-apks/*
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
         with:
-          tag_name: v1.1.0
-          name: "NTC R-T Pro v1.1.0 — 自主输入版 + 正式签名 + 多CDN在线更新"
+          tag_name: v1.2.0
+          name: "NTC R-T Pro v1.2.0 — 历史计算存档与自由对比版"
           body: |
-            ### 🔬 NTC R-T Pro v1.1.0
+            ### 🔬 NTC R-T Pro v1.2.0
 
-            #### ✨ 本版核心升级
-            1. **纯自主输入体验（极简去冗余）**：
-               - 移除页面顶部预设按钮栏与底部预设厂商/料号摘要，界面更加聚焦曲线本身；
-               - 曲线页顶部直接提供 `R25`、`B值`、`公差`、`起始/终止温度`、`步进` 输入框，修改即自动持久化保存并实时重绘曲线。
-            2. **正式 Release 签名**：
-               - 启用独立 RSA-2048 Release Keystore 正式签名，后续版本支持无缝覆盖升级。
-            3. **多 CDN 加速在线更新**：
-               - 集成 `ghfast.top`、`gh-proxy.com`、`mirror.ghproxy.com`、`ghproxy.net`、`gh.llkk.cc` 与 GitHub 官方直连 6 线并发测速与自动容错下载，内置进度条与包头校验。
-            4. **UI 细节修复**：
-               - 修复图表面板下方「对比: 关」按钮文字换行遮挡问题。
+            #### ✨ 本版升级亮点
+            1. **计算结果可保存 & 历史档案对比**：
+               - 移除内置固定 B 值对比列表，曲线下方新增 **`存曲线`** 按钮，可随时命名保存当前算出的曲线参数；
+               - 自动记忆最近计算快照（`[历史]`），点开 **`对比`** 即可把以前算出的任意曲线设为对比（洋红虚线）或重新载入编辑；
+               - 对比窗口内也支持直接输入任意临时 `R25` 和 `B` 值进行对比。
+            2. **正式签名 + 多 CDN 在线更新**：
+               - 与 `v1.1.0` 使用同一正式 Release Keystore 签名，支持 App 内点击版本徽章直接在线覆盖安装！
 
             #### 📥 安装使用
-            - 下载下方 **`NTC-RT-Pro-v1.1.0.apk`** 直接安装即可（注：首次从 v1.0.0 调试签名跨至 v1.1.0 正式签名时需先卸载旧版一次，此后均支持在线覆盖安装）。
+            - 如已安装 `v1.1.0`，可在 App 内直接点左上角 **`v1.1.0`** 通过多 CDN 加速在线更新至 `v1.2.0`，或下载下方 **`NTC-RT-Pro-v1.2.0.apk`** 覆盖安装。
           files: release-apks/*
           draft: false
           prerelease: false

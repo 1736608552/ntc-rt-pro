@@ -510,7 +510,7 @@ class NtcCurveView @JvmOverloads constructor(
         val legendText = buildString {
             append("━━ 标称 R_nom   --- 上限 R_max   --- 下限 R_min")
             if (showCompareCurve && info.compareSpec != null) {
-                append("   --- 对比: B=${info.compareSpec.bValue.roundToInt()}K")
+                append("   --- 对比: R25=${NtcMathEngine.formatResistanceAuto(info.compareSpec.r25Ohm)} / B=${info.compareSpec.bValue.roundToInt()}K")
             }
         }
         canvas.drawText(legendText, dp(24f) * scale, headerHeight - dp(12f) * scale, legendPaint)

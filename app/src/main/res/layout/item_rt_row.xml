@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingHorizontal="10dp"
+    android:paddingVertical="9dp">
+
+    <TextView
+        android:id="@+id/tvRowTemp"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1.0"
+        android:fontFamily="monospace"
+        android:gravity="start"
+        android:textColor="@color/lab_text_primary"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvRowMin"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1.2"
+        android:fontFamily="monospace"
+        android:gravity="end"
+        android:textColor="@color/lab_emerald"
+        android:textSize="12sp" />
+
+    <TextView
+        android:id="@+id/tvRowNom"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1.3"
+        android:fontFamily="monospace"
+        android:gravity="end"
+        android:textColor="@color/lab_cyan"
+        android:textSize="12.5sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvRowMax"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1.2"
+        android:fontFamily="monospace"
+        android:gravity="end"
+        android:textColor="@color/lab_amber"
+        android:textSize="12sp" />
+
+    <TextView
+        android:id="@+id/tvRowAlpha"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1.0"
+        android:fontFamily="monospace"
+        android:gravity="end"
+        android:textColor="@color/lab_text_secondary"
+        android:textSize="11.5sp" />
+
+</LinearLayout>

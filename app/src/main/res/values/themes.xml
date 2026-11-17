@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.NtcRtPro" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/lab_cyan</item>
+        <item name="colorOnPrimary">@color/lab_bg</item>
+        <item name="colorSecondary">@color/lab_emerald</item>
+        <item name="colorSurface">@color/lab_surface</item>
+        <item name="android:colorBackground">@color/lab_bg</item>
+        <item name="android:statusBarColor">@color/lab_bg</item>
+        <item name="android:navigationBarColor">@color/lab_surface</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <style name="LabInputLayout" parent="Widget.Material3.TextInputLayout.OutlinedBox.Dense">
+        <item name="boxBackgroundColor">@color/lab_bg</item>
+        <item name="boxStrokeColor">@color/lab_border</item>
+        <item name="hintTextColor">@color/lab_cyan</item>
+        <item name="android:textColorHint">@color/lab_text_muted</item>
+        <item name="boxCornerRadiusTopStart">10dp</item>
+        <item name="boxCornerRadiusTopEnd">10dp</item>
+        <item name="boxCornerRadiusBottomStart">10dp</item>
+        <item name="boxCornerRadiusBottomEnd">10dp</item>
+    </style>
+</resources>

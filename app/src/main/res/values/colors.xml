@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="lab_bg">#080C14</color>
+    <color name="lab_surface">#101726</color>
+    <color name="lab_surface_elevated">#162033</color>
+    <color name="lab_border">#1E293B</color>
+    <color name="lab_border_glow">#3300E5FF</color>
+
+    <color name="lab_cyan">#00E5FF</color>
+    <color name="lab_cyan_dim">#1A00E5FF</color>
+    <color name="lab_emerald">#10B981</color>
+    <color name="lab_emerald_dim">#1A10B981</color>
+    <color name="lab_amber">#F59E0B</color>
+    <color name="lab_amber_dim">#1AF59E0B</color>
+    <color name="lab_rose">#F43F5E</color>
+
+    <color name="lab_text_primary">#F8FAFC</color>
+    <color name="lab_text_secondary">#94A3B8</color>
+    <color name="lab_text_muted">#64748B</color>
+</resources>

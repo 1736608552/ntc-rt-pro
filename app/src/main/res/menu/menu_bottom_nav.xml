@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_curve"
+        android:icon="@drawable/ic_nav_curve"
+        android:title="特性曲线" />
+    <item
+        android:id="@+id/nav_table"
+        android:icon="@drawable/ic_nav_table"
+        android:title="阻值特性表" />
+    <item
+        android:id="@+id/nav_tools"
+        android:icon="@drawable/ic_nav_lab"
+        android:title="反推与仿真" />
+</menu>

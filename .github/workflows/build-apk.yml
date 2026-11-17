@@ -1,0 +1,86 @@
+name: Build NTC R-T Pro APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Test & Build Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Ensure Gradle Wrapper
+        run: |
+          gradle wrapper --gradle-version 8.4 --distribution-type bin
+          chmod +x gradlew
+
+      - name: Run Unit Tests
+        run: ./gradlew test --stacktrace
+
+      - name: Build Release APK
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Prepare APK Package
+        run: |
+          mkdir -p release-apks
+          for f in app/build/outputs/apk/release/*.apk; do
+            cp "$f" release-apks/NTC-RT-Pro-v1.0.0.apk
+          done
+          ls -lh release-apks/
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NTC-RT-Pro-APK
+          path: release-apks/*.apk
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
+        with:
+          tag_name: v1.0.0
+          name: "NTC R-T Pro v1.0.0 — 精密热敏电阻特性曲线分析仪"
+          body: |
+            ### 🔬 NTC R-T Pro v1.0.0
+
+            一款采用精密示波器深色实验室风格的 Android 原生 NTC 热敏电阻特性分析仪，内置**南京时恒电子科技有限公司 5Ω / B4100 (±17%)** 基准特性参数与全温区曲线计算引擎。
+
+            #### ✨ 核心专业特性
+            1. **精密 R-T 交互式特性曲线**：
+               - 标称曲线发光渲染 + 上下限公差包络带填充 + 25℃ 基准锚点线
+               - 支持 **线性坐标 / 对数坐标 (Log-Y)** 一键切换
+               - 支持 **双曲线叠加对比**（同时对比不同 B 值曲线差异）
+               - 触摸十字准星实时 HUD 读数：温度 $T$、标称阻值 $R_{\text{nom}}$、允许区间、温度灵敏度系数 $\alpha\,(\%/^\circ\text{C})$
+               - 一键导出 **1600×1000 高清 PNG 工程曲线图**
+            2. **完整特性数据表 & 嵌入式代码生成**：
+               - 温度快速检索定位、点击行联动曲线游标
+               - 支持导出 **UTF-8 CSV (Excel 直开不乱码)**、**Markdown 表格**、**C 语言 LUT 查表数组与插值函数**
+            3. **工程反推 & 分压电路仿真**：
+               - 阻值 ↔ 温度双向精算（含公差带温度误差范围）
+               - 两点实测法反算 B 值并一键应用到曲线
+               - NTC 串联分压电路 $V_{\text{out}}(T)$ 曲线与 ADC 码值实时仿真
+
+            #### 📥 安装使用
+            - 下载下方 **`NTC-RT-Pro-v1.0.0.apk`** 直接安装到 Android 设备即可使用。
+          files: release-apks/*.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Test & Build Release APK
+    name: Test, Sign & Release APK
     runs-on: ubuntu-latest
 
     steps:
@@ -34,52 +34,88 @@ jobs:
       - name: Run Unit Tests
         run: ./gradlew test --stacktrace
 
-      - name: Build Release APK
+      - name: Decode Release Keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > app/release.keystore
+            ls -lh app/release.keystore
+          else
+            echo "WARNING: ANDROID_KEYSTORE_BASE64 secret not found"
+            exit 1
+          fi
+
+      - name: Build Signed Release APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew assembleRelease --stacktrace
 
-      - name: Prepare APK Package
+      - name: Verify Release Signature & Prepare Assets
+        env:
+          GITHUB_REPO: ${{ github.repository }}
         run: |
+          rm -f app/release.keystore
           mkdir -p release-apks
-          for f in app/build/outputs/apk/release/*.apk; do
-            cp "$f" release-apks/NTC-RT-Pro-v1.0.0.apk
-          done
+          APK_SRC=$(ls app/build/outputs/apk/release/*.apk | head -n 1)
+          cp "$APK_SRC" release-apks/NTC-RT-Pro-v1.1.0.apk
+
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)
+          if [ -n "$APKSIGNER" ]; then
+            "$APKSIGNER" verify --print-certs release-apks/NTC-RT-Pro-v1.1.0.apk
+          fi
+
+          export APK_SIZE=$(stat -c%s release-apks/NTC-RT-Pro-v1.1.0.apk)
+          export PUB_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          python3 -c '
+          import json, os
+          repo = os.environ["GITHUB_REPO"]
+          data = {
+              "versionCode": 2,
+              "versionName": "1.1.0",
+              "apkName": "NTC-RT-Pro-v1.1.0.apk",
+              "apkSize": int(os.environ["APK_SIZE"]),
+              "downloadUrl": f"https://github.com/{repo}/releases/download/v1.1.0/NTC-RT-Pro-v1.1.0.apk",
+              "publishedAt": os.environ["PUB_AT"],
+              "releaseNotes": "1. 移除预设按钮与底部预设摘要，改为页面顶部直接输入参数并自动保存；\n2. 启用正式 Release Keystore 签名；\n3. 新增多 CDN 加速在线更新（并发测速优选与自动容错切换）；\n4. 修复图表底部对比按钮文字换行显示问题。"
+          }
+          with open("release-apks/version.json", "w", encoding="utf-8") as f:
+              json.dump(data, f, ensure_ascii=False, indent=2)
+          '
+          cat release-apks/version.json
           ls -lh release-apks/
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NTC-RT-Pro-APK
-          path: release-apks/*.apk
+          name: NTC-RT-Pro-APK-v1.1.0
+          path: release-apks/*
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
         with:
-          tag_name: v1.0.0
-          name: "NTC R-T Pro v1.0.0 — 精密热敏电阻特性曲线分析仪"
+          tag_name: v1.1.0
+          name: "NTC R-T Pro v1.1.0 — 自主输入版 + 正式签名 + 多CDN在线更新"
           body: |
-            ### 🔬 NTC R-T Pro v1.0.0
+            ### 🔬 NTC R-T Pro v1.1.0
 
-            一款采用精密示波器深色实验室风格的 Android 原生 NTC 热敏电阻特性分析仪，内置**南京时恒电子科技有限公司 5Ω / B4100 (±17%)** 基准特性参数与全温区曲线计算引擎。
-
-            #### ✨ 核心专业特性
-            1. **精密 R-T 交互式特性曲线**：
-               - 标称曲线发光渲染 + 上下限公差包络带填充 + 25℃ 基准锚点线
-               - 支持 **线性坐标 / 对数坐标 (Log-Y)** 一键切换
-               - 支持 **双曲线叠加对比**（同时对比不同 B 值曲线差异）
-               - 触摸十字准星实时 HUD 读数：温度 $T$、标称阻值 $R_{\text{nom}}$、允许区间、温度灵敏度系数 $\alpha\,(\%/^\circ\text{C})$
-               - 一键导出 **1600×1000 高清 PNG 工程曲线图**
-            2. **完整特性数据表 & 嵌入式代码生成**：
-               - 温度快速检索定位、点击行联动曲线游标
-               - 支持导出 **UTF-8 CSV (Excel 直开不乱码)**、**Markdown 表格**、**C 语言 LUT 查表数组与插值函数**
-            3. **工程反推 & 分压电路仿真**：
-               - 阻值 ↔ 温度双向精算（含公差带温度误差范围）
-               - 两点实测法反算 B 值并一键应用到曲线
-               - NTC 串联分压电路 $V_{\text{out}}(T)$ 曲线与 ADC 码值实时仿真
+            #### ✨ 本版核心升级
+            1. **纯自主输入体验（极简去冗余）**：
+               - 移除页面顶部预设按钮栏与底部预设厂商/料号摘要，界面更加聚焦曲线本身；
+               - 曲线页顶部直接提供 `R25`、`B值`、`公差`、`起始/终止温度`、`步进` 输入框，修改即自动持久化保存并实时重绘曲线。
+            2. **正式 Release 签名**：
+               - 启用独立 RSA-2048 Release Keystore 正式签名，后续版本支持无缝覆盖升级。
+            3. **多 CDN 加速在线更新**：
+               - 集成 `ghfast.top`、`gh-proxy.com`、`mirror.ghproxy.com`、`ghproxy.net`、`gh.llkk.cc` 与 GitHub 官方直连 6 线并发测速与自动容错下载，内置进度条与包头校验。
+            4. **UI 细节修复**：
+               - 修复图表面板下方「对比: 关」按钮文字换行遮挡问题。
 
             #### 📥 安装使用
-            - 下载下方 **`NTC-RT-Pro-v1.0.0.apk`** 直接安装到 Android 设备即可使用。
-          files: release-apks/*.apk
+            - 下载下方 **`NTC-RT-Pro-v1.1.0.apk`** 直接安装即可（注：首次从 v1.0.0 调试签名跨至 v1.1.0 正式签名时需先卸载旧版一次，此后均支持在线覆盖安装）。
+          files: release-apks/*
           draft: false
           prerelease: false
         env:

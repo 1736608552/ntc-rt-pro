@@ -10,10 +10,8 @@ import kotlin.math.roundToInt
  * NTC 热敏电阻规格参数配置
  */
 data class NtcSpec(
-    val id: String = "shiheng_5_4100",
-    val label: String = "时恒 5Ω / B4100 (±17%)",
-    val manufacturer: String = "南京时恒电子科技有限公司",
-    val partNumber: String = "XIN-5R0-B4100",
+    val manufacturer: String = "",
+    val partNumber: String = "",
     val r25Ohm: Double = 5.0,
     val bValue: Double = 4100.0,
     val r25TolerancePct: Double = 17.0,
@@ -63,80 +61,17 @@ object NtcMathEngine {
     const val KELVIN_OFFSET = 273.15
     const val T25_KELVIN = 25.0 + KELVIN_OFFSET
 
-    /**
-     * 内置行业常用预设，默认第一项精确对应时恒 5Ω/B4100 特性表
-     */
-    fun builtInPresets(): List<NtcSpec> = listOf(
-        NtcSpec(
-            id = "shiheng_5_4100",
-            label = "时恒 5Ω / B4100 (20~36.5℃)",
-            manufacturer = "南京时恒电子科技有限公司",
-            partNumber = "XIN-5R0-B4100",
-            r25Ohm = 5.0,
-            bValue = 4100.0,
-            r25TolerancePct = 17.0,
-            bTolerancePct = 1.0,
-            includeBTolerance = false,
-            tMin = 20.0,
-            tMax = 36.5,
-            tStep = 0.5
-        ),
-        NtcSpec(
-            id = "shiheng_5_wide",
-            label = "时恒 5Ω 宽温区 (-40~150℃)",
-            manufacturer = "南京时恒电子科技有限公司",
-            partNumber = "MF72-5D (B4100)",
-            r25Ohm = 5.0,
-            bValue = 4100.0,
-            r25TolerancePct = 17.0,
-            bTolerancePct = 2.0,
-            includeBTolerance = true,
-            tMin = -40.0,
-            tMax = 150.0,
-            tStep = 5.0
-        ),
-        NtcSpec(
-            id = "mf52_10k_3950",
-            label = "测温 10kΩ / B3950 (±1%)",
-            manufacturer = "通用精密测温 NTC",
-            partNumber = "MF52-103F3950",
-            r25Ohm = 10_000.0,
-            bValue = 3950.0,
-            r25TolerancePct = 1.0,
-            bTolerancePct = 1.0,
-            includeBTolerance = true,
-            tMin = -40.0,
-            tMax = 125.0,
-            tStep = 1.0
-        ),
-        NtcSpec(
-            id = "mf58_100k_3950",
-            label = "高温 100kΩ / B3950 (±1%)",
-            manufacturer = "玻璃封装高温 NTC",
-            partNumber = "MF58-104F3950",
-            r25Ohm = 100_000.0,
-            bValue = 3950.0,
-            r25TolerancePct = 1.0,
-            bTolerancePct = 1.0,
-            includeBTolerance = true,
-            tMin = -40.0,
-            tMax = 200.0,
-            tStep = 5.0
-        ),
-        NtcSpec(
-            id = "hi_prec_50k_3977",
-            label = "高精度 50kΩ / B3977 (±0.5%)",
-            manufacturer = "医疗级高稳 NTC",
-            partNumber = "NTC-503D3977",
-            r25Ohm = 50_000.0,
-            bValue = 3977.0,
-            r25TolerancePct = 0.5,
-            bTolerancePct = 0.5,
-            includeBTolerance = true,
-            tMin = 0.0,
-            tMax = 80.0,
-            tStep = 0.5
-        )
+    fun defaultSpec(): NtcSpec = NtcSpec(
+        manufacturer = "",
+        partNumber = "",
+        r25Ohm = 5.0,
+        bValue = 4100.0,
+        r25TolerancePct = 17.0,
+        bTolerancePct = 1.0,
+        includeBTolerance = false,
+        tMin = 20.0,
+        tMax = 36.5,
+        tStep = 0.5
     )
 
     /**
@@ -309,11 +244,16 @@ object NtcMathEngine {
         }
     }
 
+    fun specTitlePrefix(spec: NtcSpec): String {
+        val parts = listOf(spec.manufacturer.trim(), spec.partNumber.trim()).filter { it.isNotEmpty() }
+        return if (parts.isEmpty()) "NTC R-T 特性分析" else parts.joinToString(" · ")
+    }
+
     fun exportCsv(spec: NtcSpec, points: List<RtPoint>): String {
         val sb = StringBuilder()
         sb.append('\uFEFF')
-        sb.appendLine("# ${spec.manufacturer} - NTC 温度阻值特性表")
-        sb.appendLine("# 料号,${spec.partNumber},R25(Ω),${spec.r25Ohm},B值(K),${spec.bValue},R25公差(±%),${spec.r25TolerancePct},叠加B值公差,${if (spec.includeBTolerance) "是(±${spec.bTolerancePct}%)" else "否"}")
+        sb.appendLine("# ${specTitlePrefix(spec)}")
+        sb.appendLine("# R25(Ω),${spec.r25Ohm},B值(K),${spec.bValue},R25公差(±%),${spec.r25TolerancePct},叠加B值公差,${if (spec.includeBTolerance) "是(±${spec.bTolerancePct}%)" else "否"}")
         sb.appendLine("温度 T(℃),下限 R_min(Ω),标称阻值 R_nom(Ω),上限 R_max(Ω),灵敏度 α(%/℃)")
         for (pt in points) {
             sb.appendLine(
@@ -329,7 +269,7 @@ object NtcMathEngine {
 
     fun exportMarkdown(spec: NtcSpec, points: List<RtPoint>): String {
         val sb = StringBuilder()
-        sb.appendLine("### ${spec.manufacturer} (${spec.partNumber}) R-T 特性表")
+        sb.appendLine("### ${specTitlePrefix(spec)}")
         sb.appendLine("- 参数：`R25 = ${spec.r25Ohm} Ω (±${spec.r25TolerancePct}%)`，`B = ${spec.bValue} K`")
         sb.appendLine()
         sb.appendLine("| 温度 T (℃) | 下限 R_min (Ω) | 标称 R_nom (Ω) | 上限 R_max (Ω) | α (%/℃) |")
@@ -350,7 +290,7 @@ object NtcMathEngine {
         val sb = StringBuilder()
         val count = points.size
         sb.appendLine("/**")
-        sb.appendLine(" * ${spec.manufacturer} - ${spec.partNumber} NTC 温度-阻值查表 (LUT)")
+        sb.appendLine(" * ${specTitlePrefix(spec)} LUT")
         sb.appendLine(" * R25 = ${spec.r25Ohm} Ohm (±${spec.r25TolerancePct}%), B = ${spec.bValue} K")
         sb.appendLine(" * Range: ${formatTemp(spec.tMin)} C .. ${formatTemp(spec.tMax)} C, Step: ${spec.tStep} C")
         sb.appendLine(" */")

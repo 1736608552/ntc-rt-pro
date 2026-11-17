@@ -31,7 +31,7 @@
                 <View
                     android:layout_width="8dp"
                     android:layout_height="8dp"
-                    android:layout_marginEnd="8dp"
+                    android:layout_marginEnd="7dp"
                     android:background="@drawable/bg_pill_active" />
 
                 <TextView
@@ -39,19 +39,21 @@
                     android:layout_height="wrap_content"
                     android:text="NTC R-T Pro"
                     android:textColor="@color/lab_text_primary"
-                    android:textSize="17sp"
+                    android:textSize="16.5sp"
                     android:textStyle="bold" />
 
                 <TextView
+                    android:id="@+id/btnCheckUpdate"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
-                    android:background="@drawable/bg_pill_active"
-                    android:paddingHorizontal="7dp"
-                    android:paddingVertical="1dp"
-                    android:text="LAB"
+                    android:background="@drawable/bg_pill_idle"
+                    android:fontFamily="monospace"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="2dp"
+                    android:text="v1.1.0"
                     android:textColor="@color/lab_cyan"
-                    android:textSize="10sp"
+                    android:textSize="10.5sp"
                     android:textStyle="bold" />
             </LinearLayout>
 
@@ -65,35 +67,39 @@
                 android:maxLines="1"
                 android:text="R25=5Ω · B4100K · ±17%"
                 android:textColor="@color/lab_cyan"
-                android:textSize="11.5sp" />
+                android:textSize="11sp" />
         </LinearLayout>
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnEditParams"
             style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="wrap_content"
-            android:layout_height="36dp"
+            android:layout_height="34dp"
             android:layout_marginEnd="6dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
             android:minWidth="0dp"
-            android:paddingHorizontal="12dp"
-            android:text="调参"
+            android:paddingHorizontal="10dp"
+            android:text="高级"
             android:textColor="@color/lab_text_primary"
-            android:textSize="12sp"
-            app:cornerRadius="10dp"
+            android:textSize="11.5sp"
+            app:cornerRadius="9dp"
             app:strokeColor="@color/lab_border" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnExportPng"
             style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="wrap_content"
-            android:layout_height="36dp"
+            android:layout_height="34dp"
             android:backgroundTint="@color/lab_cyan_dim"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
             android:minWidth="0dp"
-            android:paddingHorizontal="12dp"
+            android:paddingHorizontal="10dp"
             android:text="导出图"
             android:textColor="@color/lab_cyan"
-            android:textSize="12sp"
-            app:cornerRadius="10dp" />
+            android:textSize="11.5sp"
+            app:cornerRadius="9dp" />
     </LinearLayout>
 
     <View
@@ -120,18 +126,153 @@
                 android:orientation="vertical"
                 android:padding="12dp">
 
-                <!-- 预设横向选择器 -->
-                <HorizontalScrollView
+                <!-- 直接自主参数输入卡片 -->
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:scrollbars="none">
+                    android:background="@drawable/bg_lab_card"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="10dp"
+                    android:paddingVertical="10dp">
 
                     <LinearLayout
-                        android:id="@+id/layoutPresets"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal" />
-                </HorizontalScrollView>
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/LabInputLayout"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="4dp"
+                            android:layout_weight="1"
+                            android:hint="R25 (Ω)">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etQuickR25"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:inputType="numberDecimal"
+                                android:paddingVertical="8dp"
+                                android:textColor="@color/lab_text_primary"
+                                android:textSize="12.5sp" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/LabInputLayout"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginHorizontal="4dp"
+                            android:layout_weight="1"
+                            android:hint="B 值 (K)">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etQuickB"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:inputType="numberDecimal"
+                                android:paddingVertical="8dp"
+                                android:textColor="@color/lab_text_primary"
+                                android:textSize="12.5sp" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/LabInputLayout"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="4dp"
+                            android:layout_weight="0.85"
+                            android:hint="公差 (±%)">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etQuickTol"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:inputType="numberDecimal"
+                                android:paddingVertical="8dp"
+                                android:textColor="@color/lab_text_primary"
+                                android:textSize="12.5sp" />
+                        </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/LabInputLayout"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="4dp"
+                            android:layout_weight="1"
+                            android:hint="起始 (℃)">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etQuickTMin"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:inputType="numberDecimal|numberSigned"
+                                android:paddingVertical="8dp"
+                                android:textColor="@color/lab_text_primary"
+                                android:textSize="12.5sp" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/LabInputLayout"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginHorizontal="4dp"
+                            android:layout_weight="1"
+                            android:hint="终止 (℃)">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etQuickTMax"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:inputType="numberDecimal|numberSigned"
+                                android:paddingVertical="8dp"
+                                android:textColor="@color/lab_text_primary"
+                                android:textSize="12.5sp" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/LabInputLayout"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginHorizontal="4dp"
+                            android:layout_weight="0.85"
+                            android:hint="步进 (℃)">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etQuickStep"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:inputType="numberDecimal"
+                                android:paddingVertical="8dp"
+                                android:textColor="@color/lab_text_primary"
+                                android:textSize="12.5sp" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnQuickApply"
+                            style="@style/Widget.Material3.Button.TonalButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="40dp"
+                            android:layout_marginStart="4dp"
+                            android:backgroundTint="@color/lab_cyan_dim"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:minWidth="0dp"
+                            android:paddingHorizontal="12dp"
+                            android:text="重绘"
+                            android:textColor="@color/lab_cyan"
+                            android:textSize="12sp"
+                            app:cornerRadius="9dp" />
+                    </LinearLayout>
+                </LinearLayout>
 
                 <!-- 精密 HUD 实时游标读数卡 -->
                 <LinearLayout
@@ -292,9 +433,9 @@
                     <com.ntcrt.pro.NtcCurveView
                         android:id="@+id/ntcCurveView"
                         android:layout_width="match_parent"
-                        android:layout_height="285dp" />
+                        android:layout_height="295dp" />
 
-                    <!-- 图表模式切换条 -->
+                    <!-- 图表模式切换条（单行防截断） -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -310,6 +451,8 @@
                             android:layout_weight="1"
                             android:insetTop="0dp"
                             android:insetBottom="0dp"
+                            android:maxLines="1"
+                            android:paddingHorizontal="6dp"
                             android:text="坐标: 线性"
                             android:textColor="@color/lab_cyan"
                             android:textSize="11sp"
@@ -325,7 +468,9 @@
                             android:layout_weight="1"
                             android:insetTop="0dp"
                             android:insetBottom="0dp"
-                            android:text="公差带: 开"
+                            android:maxLines="1"
+                            android:paddingHorizontal="6dp"
+                            android:text="公差: 开"
                             android:textColor="@color/lab_emerald"
                             android:textSize="11sp"
                             app:cornerRadius="8dp"
@@ -340,7 +485,9 @@
                             android:layout_weight="1"
                             android:insetTop="0dp"
                             android:insetBottom="0dp"
-                            android:text="对比曲线: 关"
+                            android:maxLines="1"
+                            android:paddingHorizontal="6dp"
+                            android:text="对比: 关"
                             android:textColor="@color/lab_text_secondary"
                             android:textSize="11sp"
                             app:cornerRadius="8dp"
@@ -385,35 +532,6 @@
                     </LinearLayout>
                 </LinearLayout>
 
-                <!-- 器件规格摘要卡 -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:background="@drawable/bg_lab_card"
-                    android:orientation="vertical"
-                    android:padding="12dp">
-
-                    <TextView
-                        android:id="@+id/tvSpecSummaryTitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="南京时恒电子科技有限公司 · XIN-5R0-B4100"
-                        android:textColor="@color/lab_text_primary"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvSpecSummaryDetail"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:fontFamily="monospace"
-                        android:lineSpacingExtra="3dp"
-                        android:textColor="@color/lab_text_secondary"
-                        android:textSize="11.5sp" />
-                </LinearLayout>
-
             </LinearLayout>
         </ScrollView>
 
@@ -426,7 +544,6 @@
             android:padding="12dp"
             android:visibility="gone">
 
-            <!-- 查找与单位 bar -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -476,7 +593,6 @@
                     android:textSize="11.5sp" />
             </LinearLayout>
 
-            <!-- 导出操作栏 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -529,7 +645,6 @@
                     app:strokeColor="@color/lab_border" />
             </LinearLayout>
 
-            <!-- 固定表头 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

@@ -7,8 +7,8 @@ import org.junit.Test
 class NtcMathEngineTest {
 
     @Test
-    fun verifyShiheng5OhmTableExactValues() {
-        val spec = NtcMathEngine.builtInPresets().first()
+    fun verifyDefault5OhmTableExactValues() {
+        val spec = NtcMathEngine.defaultSpec()
         val points = NtcMathEngine.generateTable(spec)
         assertEquals(34, points.size)
 
@@ -35,7 +35,7 @@ class NtcMathEngineTest {
 
     @Test
     fun verifyReverseTemperatureAndSolveBValue() {
-        val spec = NtcMathEngine.builtInPresets().first()
+        val spec = NtcMathEngine.defaultSpec()
         val rAt30 = NtcMathEngine.nominalResistance(30.0, spec.r25Ohm, spec.bValue)
         val rev = NtcMathEngine.reverseSolveTemperature(rAt30, spec)
         assertEquals(30.0, rev.tempNomC, 1e-6)

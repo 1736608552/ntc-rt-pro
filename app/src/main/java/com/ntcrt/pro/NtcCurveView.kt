@@ -489,14 +489,15 @@ class NtcCurveView @JvmOverloads constructor(
             typeface = Typeface.MONOSPACE
         }
         val spec = info.spec
+        val headerTitle = "${NtcMathEngine.specTitlePrefix(spec)} — 温度阻值特性曲线 (R-T Curve)"
         canvas.drawText(
-            "${spec.manufacturer} — 温度阻值特性曲线 (R-T Curve)",
+            headerTitle,
             dp(24f) * scale,
             dp(28f) * scale,
             titlePaint
         )
         canvas.drawText(
-            "料号: ${spec.partNumber}  |  R25=${NtcMathEngine.formatResistanceAuto(spec.r25Ohm)} (±${spec.r25TolerancePct}%)  |  B=${spec.bValue.roundToInt()}K  |  范围: ${NtcMathEngine.formatTemp(spec.tMin)}~${NtcMathEngine.formatTemp(spec.tMax)}℃",
+            "R25=${NtcMathEngine.formatResistanceAuto(spec.r25Ohm)} (±${spec.r25TolerancePct}%)  |  B=${spec.bValue.roundToInt()}K  |  范围: ${NtcMathEngine.formatTemp(spec.tMin)}~${NtcMathEngine.formatTemp(spec.tMax)}℃",
             dp(24f) * scale,
             dp(50f) * scale,
             subPaint
@@ -509,7 +510,7 @@ class NtcCurveView @JvmOverloads constructor(
         val legendText = buildString {
             append("━━ 标称 R_nom   --- 上限 R_max   --- 下限 R_min")
             if (showCompareCurve && info.compareSpec != null) {
-                append("   --- 对比: ${info.compareSpec.label}")
+                append("   --- 对比: B=${info.compareSpec.bValue.roundToInt()}K")
             }
         }
         canvas.drawText(legendText, dp(24f) * scale, headerHeight - dp(12f) * scale, legendPaint)

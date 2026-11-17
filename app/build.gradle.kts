@@ -11,16 +11,32 @@ android {
         applicationId = "com.ntcrt.pro"
         minSdk = 21
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("release") {
+            val ksFile = file("release.keystore")
+            val storePwd = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            val aliasName = System.getenv("ANDROID_KEY_ALIAS")
+            val keyPwd = System.getenv("ANDROID_KEY_PASSWORD")
+            if (ksFile.exists() && !storePwd.isNullOrEmpty() && !aliasName.isNullOrEmpty() && !keyPwd.isNullOrEmpty()) {
+                storeFile = ksFile
+                storePassword = storePwd
+                keyAlias = aliasName
+                keyPassword = keyPwd
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            val releaseSign = signingConfigs.getByName("release")
+            signingConfig = if (releaseSign.storeFile != null) releaseSign else signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -37,6 +53,7 @@ android {
     }
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 }
 

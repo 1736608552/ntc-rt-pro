@@ -7,7 +7,10 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.View
+import android.view.inputmethod.InputMethodManager
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -17,42 +20,87 @@ import androidx.core.content.FileProvider
 import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.android.material.textfield.TextInputEditText
 import com.ntcrt.pro.databinding.ActivityMainBinding
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    private val presets = NtcMathEngine.builtInPresets()
-    private var currentSpec: NtcSpec = presets.first()
-    private var compareSpec: NtcSpec = presets.first().copy(
-        id = "compare_b3950",
-        label = "对比 B3950K",
-        bValue = 3950.0
-    )
+    private var currentSpec: NtcSpec = NtcMathEngine.defaultSpec()
+    private var compareSpec: NtcSpec = currentSpec.copy(bValue = 3950.0)
     private var currentPoints: List<RtPoint> = emptyList()
     private var comparePoints: List<RtPoint> = emptyList()
     private lateinit var tableAdapter: RtTableAdapter
+
     private var isSliderSyncing = false
+    private var isQuickSyncing = false
     private var ntcOnTop = true
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val autoApplyRunnable = Runnable { applyFromQuickInputs(hideKeyboard = false, silentError = true) }
+    private var cachedUpdateInfo: RemoteUpdateInfo? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        currentSpec = loadSavedSpec()
+        compareSpec = currentSpec.copy(bValue = 3950.0)
+
         setupBottomNav()
-        setupPresetsBar()
+        setupQuickInputBar()
         setupCurveControls()
         setupTableSection()
         setupToolsSection()
+        setupUpdateFeature()
 
+        syncQuickInputsFromSpec(currentSpec)
         applySpec(currentSpec)
+    }
+
+    override fun onDestroy() {
+        mainHandler.removeCallbacks(autoApplyRunnable)
+        super.onDestroy()
+    }
+
+    private fun loadSavedSpec(): NtcSpec {
+        val sp = getSharedPreferences("ntc_spec_prefs", MODE_PRIVATE)
+        if (!sp.contains("r25")) return NtcMathEngine.defaultSpec()
+        return NtcSpec(
+            manufacturer = sp.getString("manufacturer", "") ?: "",
+            partNumber = sp.getString("partNumber", "") ?: "",
+            r25Ohm = sp.getFloat("r25", 5.0f).toDouble(),
+            bValue = sp.getFloat("bValue", 4100.0f).toDouble(),
+            r25TolerancePct = sp.getFloat("tolR", 17.0f).toDouble(),
+            bTolerancePct = sp.getFloat("tolB", 1.0f).toDouble(),
+            includeBTolerance = sp.getBoolean("includeB", false),
+            tMin = sp.getFloat("tMin", 20.0f).toDouble(),
+            tMax = sp.getFloat("tMax", 36.5f).toDouble(),
+            tStep = sp.getFloat("tStep", 0.5f).toDouble()
+        )
+    }
+
+    private fun saveSpec(spec: NtcSpec) {
+        getSharedPreferences("ntc_spec_prefs", MODE_PRIVATE).edit()
+            .putString("manufacturer", spec.manufacturer)
+            .putString("partNumber", spec.partNumber)
+            .putFloat("r25", spec.r25Ohm.toFloat())
+            .putFloat("bValue", spec.bValue.toFloat())
+            .putFloat("tolR", spec.r25TolerancePct.toFloat())
+            .putFloat("tolB", spec.bTolerancePct.toFloat())
+            .putBoolean("includeB", spec.includeBTolerance)
+            .putFloat("tMin", spec.tMin.toFloat())
+            .putFloat("tMax", spec.tMax.toFloat())
+            .putFloat("tStep", spec.tStep.toFloat())
+            .apply()
     }
 
     private fun setupBottomNav() {
@@ -64,34 +112,69 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupPresetsBar() {
-        renderPresetPills()
+    private fun setupQuickInputBar() {
+        val scheduleAutoApply: () -> Unit = {
+            if (!isQuickSyncing) {
+                mainHandler.removeCallbacks(autoApplyRunnable)
+                mainHandler.postDelayed(autoApplyRunnable, 420)
+            }
+        }
+        binding.etQuickR25.doAfterTextChanged { scheduleAutoApply() }
+        binding.etQuickB.doAfterTextChanged { scheduleAutoApply() }
+        binding.etQuickTol.doAfterTextChanged { scheduleAutoApply() }
+        binding.etQuickTMin.doAfterTextChanged { scheduleAutoApply() }
+        binding.etQuickTMax.doAfterTextChanged { scheduleAutoApply() }
+        binding.etQuickStep.doAfterTextChanged { scheduleAutoApply() }
+
+        binding.btnQuickApply.setOnClickListener {
+            mainHandler.removeCallbacks(autoApplyRunnable)
+            applyFromQuickInputs(hideKeyboard = true, silentError = false)
+        }
     }
 
-    private fun renderPresetPills() {
-        binding.layoutPresets.removeAllViews()
-        val density = resources.displayMetrics.density
-        presets.forEach { preset ->
-            val tv = TextView(this).apply {
-                text = preset.label
-                textSize = 11.5f
-                val isSelected = preset.id == currentSpec.id
-                setBackgroundResource(if (isSelected) R.drawable.bg_pill_active else R.drawable.bg_pill_idle)
-                setTextColor(Color.parseColor(if (isSelected) "#00E5FF" else "#94A3B8"))
-                val ph = (12 * density).toInt()
-                val pv = (6 * density).toInt()
-                setPadding(ph, pv, ph, pv)
-                val lp = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-                lp.marginEnd = (8 * density).toInt()
-                layoutParams = lp
-                setOnClickListener {
-                    applySpec(preset)
-                }
+    private fun syncQuickInputsFromSpec(spec: NtcSpec) {
+        isQuickSyncing = true
+        binding.etQuickR25.setText(trimNum(spec.r25Ohm))
+        binding.etQuickB.setText(trimNum(spec.bValue))
+        binding.etQuickTol.setText(trimNum(spec.r25TolerancePct))
+        binding.etQuickTMin.setText(trimNum(spec.tMin))
+        binding.etQuickTMax.setText(trimNum(spec.tMax))
+        binding.etQuickStep.setText(trimNum(spec.tStep))
+        isQuickSyncing = false
+    }
+
+    private fun applyFromQuickInputs(hideKeyboard: Boolean, silentError: Boolean) {
+        val r25 = binding.etQuickR25.text?.toString()?.toDoubleOrNull()
+        val bVal = binding.etQuickB.text?.toString()?.toDoubleOrNull()
+        val tolR = binding.etQuickTol.text?.toString()?.toDoubleOrNull() ?: 0.0
+        val tMin = binding.etQuickTMin.text?.toString()?.toDoubleOrNull()
+        val tMax = binding.etQuickTMax.text?.toString()?.toDoubleOrNull()
+        val step = binding.etQuickStep.text?.toString()?.toDoubleOrNull()
+
+        if (r25 == null || r25 <= 0.0 || bVal == null || bVal <= 0.0 ||
+            tMin == null || tMax == null || step == null || step <= 0.0 || tMin <= -273.0
+        ) {
+            if (!silentError) {
+                Toast.makeText(this, "请检查 R25、B 值、温区与步进输入", Toast.LENGTH_SHORT).show()
             }
-            binding.layoutPresets.addView(tv)
+            return
+        }
+
+        val newSpec = currentSpec.copy(
+            r25Ohm = r25,
+            bValue = bVal,
+            r25TolerancePct = tolR.coerceIn(0.0, 95.0),
+            tMin = minOf(tMin, tMax),
+            tMax = maxOf(tMin, tMax),
+            tStep = step
+        )
+        applySpec(newSpec)
+        if (hideKeyboard) {
+            currentFocus?.let { v ->
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.hideSoftInputFromWindow(v.windowToken, 0)
+                v.clearFocus()
+            }
         }
     }
 
@@ -127,13 +210,13 @@ class MainActivity : AppCompatActivity() {
         binding.btnToggleScale.setOnClickListener {
             val next = !binding.ntcCurveView.useLogScale
             binding.ntcCurveView.useLogScale = next
-            binding.btnToggleScale.text = if (next) "坐标: 对数Y" else "坐标: 线性"
+            binding.btnToggleScale.text = if (next) "坐标: 对数" else "坐标: 线性"
         }
 
         binding.btnToggleBand.setOnClickListener {
             val next = !binding.ntcCurveView.showToleranceBand
             binding.ntcCurveView.showToleranceBand = next
-            binding.btnToggleBand.text = if (next) "公差带: 开" else "公差带: 关"
+            binding.btnToggleBand.text = if (next) "公差: 开" else "公差: 关"
         }
 
         binding.btnToggleCompare.setOnClickListener {
@@ -141,7 +224,7 @@ class MainActivity : AppCompatActivity() {
                 showCompareSelectorDialog()
             } else {
                 binding.ntcCurveView.showCompareCurve = false
-                binding.btnToggleCompare.text = "对比曲线: 关"
+                binding.btnToggleCompare.text = "对比: 关"
                 binding.btnToggleCompare.setTextColor(Color.parseColor("#94A3B8"))
                 binding.tvHudCompare.visibility = View.GONE
                 binding.ntcCurveView.selectTemperature(
@@ -156,21 +239,18 @@ class MainActivity : AppCompatActivity() {
             "同 R25 对比 B=3950K",
             "同 R25 对比 B=3435K",
             "同 R25 对比 B=4300K",
-            "自定义对比预设 (${presets[2].label})"
+            "同 R25 对比 B=4500K"
         )
         AlertDialog.Builder(this)
             .setTitle("选择叠加对比曲线")
             .setItems(options) { _, which ->
-                compareSpec = when (which) {
-                    0 -> currentSpec.copy(id = "cmp_3950", label = "B=3950K", bValue = 3950.0)
-                    1 -> currentSpec.copy(id = "cmp_3435", label = "B=3435K", bValue = 3435.0)
-                    2 -> currentSpec.copy(id = "cmp_4300", label = "B=4300K", bValue = 4300.0)
-                    else -> presets[2].copy(
-                        tMin = currentSpec.tMin,
-                        tMax = currentSpec.tMax,
-                        tStep = currentSpec.tStep
-                    )
+                val targetB = when (which) {
+                    0 -> 3950.0
+                    1 -> 3435.0
+                    2 -> 4300.0
+                    else -> 4500.0
                 }
+                compareSpec = currentSpec.copy(bValue = targetB)
                 comparePoints = NtcMathEngine.generateTable(compareSpec)
                 binding.ntcCurveView.showCompareCurve = true
                 binding.ntcCurveView.setCurveData(currentPoints, comparePoints)
@@ -183,16 +263,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun applySpec(spec: NtcSpec) {
         currentSpec = spec
+        saveSpec(spec)
         currentPoints = NtcMathEngine.generateTable(spec)
         compareSpec = compareSpec.copy(
-            r25Ohm = if (compareSpec.id.startsWith("cmp_")) spec.r25Ohm else compareSpec.r25Ohm,
+            r25Ohm = spec.r25Ohm,
             tMin = spec.tMin,
             tMax = spec.tMax,
             tStep = spec.tStep
         )
         comparePoints = NtcMathEngine.generateTable(compareSpec)
-
-        renderPresetPills()
 
         val tolLabel = if (spec.includeBTolerance) {
             "±${trimNum(spec.r25TolerancePct)}% + ΔB±${trimNum(spec.bTolerancePct)}%"
@@ -202,13 +281,6 @@ class MainActivity : AppCompatActivity() {
         binding.tvTopSpecBadge.text =
             "R25=${NtcMathEngine.formatResistanceAuto(spec.r25Ohm)} · B${spec.bValue.roundToInt()}K · $tolLabel"
 
-        binding.tvSpecSummaryTitle.text = "${spec.manufacturer} · ${spec.partNumber}"
-        val (rMin25, rMax25) = NtcMathEngine.resistanceBounds(25.0, spec)
-        binding.tvSpecSummaryDetail.text =
-            "温区: ${NtcMathEngine.formatTemp(spec.tMin)}℃ ～ ${NtcMathEngine.formatTemp(spec.tMax)}℃ (步进 ${trimNum(spec.tStep)}℃, 共 ${currentPoints.size} 点)\n" +
-            "25℃ 基准: ${NtcMathEngine.formatResistanceAuto(spec.r25Ohm)} (${NtcMathEngine.formatResistanceAuto(rMin25)} ～ ${NtcMathEngine.formatResistanceAuto(rMax25)})"
-
-        // 安全配置 Slider 范围（索引驱动避免浮点步进异常）
         isSliderSyncing = true
         if (currentPoints.size > 1) {
             binding.sliderTemp.isEnabled = true
@@ -224,12 +296,10 @@ class MainActivity : AppCompatActivity() {
 
         binding.ntcCurveView.setCurveData(currentPoints, comparePoints)
 
-        // 同步更新数据表
         val useKOhm = spec.r25Ohm >= 1000.0
         binding.tvTableUnitTag.text = if (useKOhm) "单位: kΩ" else "单位: Ω"
         tableAdapter.submitList(currentPoints, useKOhmUnit = useKOhm, highlightTemp = 25.0)
 
-        // 同步更新工程工具默认参数
         refreshReverseCalculation()
         refreshDividerSimulation()
     }
@@ -281,7 +351,7 @@ class MainActivity : AppCompatActivity() {
         etStep.setText(trimNum(currentSpec.tStep))
 
         AlertDialog.Builder(this)
-            .setTitle("NTC 规格参数配置")
+            .setTitle("高级参数与导出备注")
             .setView(view)
             .setPositiveButton("应用并重绘") { _, _ ->
                 val r25 = etR25.text?.toString()?.toDoubleOrNull()
@@ -299,10 +369,8 @@ class MainActivity : AppCompatActivity() {
                     return@setPositiveButton
                 }
                 val newSpec = currentSpec.copy(
-                    id = "custom",
-                    label = "自定义",
-                    manufacturer = etMfg.text?.toString()?.trim()?.ifEmpty { "自定义 NTC" } ?: "自定义 NTC",
-                    partNumber = etPart.text?.toString()?.trim()?.ifEmpty { "CUSTOM-NTC" } ?: "CUSTOM-NTC",
+                    manufacturer = etMfg.text?.toString()?.trim() ?: "",
+                    partNumber = etPart.text?.toString()?.trim() ?: "",
                     r25Ohm = r25,
                     bValue = bVal,
                     r25TolerancePct = tolR.coerceIn(0.0, 95.0),
@@ -312,15 +380,171 @@ class MainActivity : AppCompatActivity() {
                     tMax = maxOf(tMin, tMax),
                     tStep = step
                 )
+                syncQuickInputsFromSpec(newSpec)
                 applySpec(newSpec)
             }
             .setNegativeButton("取消", null)
             .show()
     }
 
+    // ==================== 多 CDN 在线更新逻辑 ====================
+    private fun setupUpdateFeature() {
+        binding.btnCheckUpdate.text = "v${BuildConfig.VERSION_NAME}"
+        binding.btnCheckUpdate.setOnClickListener {
+            triggerManualUpdateCheck()
+        }
+        // 启动 1.5 秒后静默检查一次新版本
+        mainHandler.postDelayed({
+            AppUpdater.checkForUpdates(
+                onSuccess = { info ->
+                    cachedUpdateInfo = info
+                    if (info.hasNewVersion) {
+                        binding.btnCheckUpdate.text = "新版 v${info.versionName}"
+                        binding.btnCheckUpdate.setTextColor(Color.parseColor("#10B981"))
+                        binding.btnCheckUpdate.setBackgroundResource(R.drawable.bg_pill_active)
+                        showUpdateDialog(info)
+                    }
+                },
+                onError = { /* 静默检查失败不打扰用户 */ }
+            )
+        }, 1500)
+    }
+
+    private fun triggerManualUpdateCheck() {
+        Toast.makeText(this, "正在多节点测速检查更新...", Toast.LENGTH_SHORT).show()
+        AppUpdater.checkForUpdates(
+            onSuccess = { info ->
+                cachedUpdateInfo = info
+                if (info.hasNewVersion) {
+                    binding.btnCheckUpdate.text = "新版 v${info.versionName}"
+                    binding.btnCheckUpdate.setTextColor(Color.parseColor("#10B981"))
+                }
+                showUpdateDialog(info)
+            },
+            onError = { msg ->
+                Toast.makeText(this, "检测失败: $msg", Toast.LENGTH_LONG).show()
+            }
+        )
+    }
+
+    private fun showUpdateDialog(info: RemoteUpdateInfo) {
+        val view = layoutInflater.inflate(R.layout.dialog_update, null)
+        val tvBadge = view.findViewById<TextView>(R.id.tvUpdateBadge)
+        val tvVer = view.findViewById<TextView>(R.id.tvUpdateVersion)
+        val tvSize = view.findViewById<TextView>(R.id.tvUpdateSize)
+        val tvNotes = view.findViewById<TextView>(R.id.tvUpdateNotes)
+        val layoutMirrors = view.findViewById<LinearLayout>(R.id.layoutCdnMirrors)
+        val layoutProgress = view.findViewById<LinearLayout>(R.id.layoutDownloadProgress)
+        val progressBar = view.findViewById<LinearProgressIndicator>(R.id.progressUpdateApk)
+        val tvProgress = view.findViewById<TextView>(R.id.tvUpdateProgressText)
+
+        if (info.hasNewVersion) {
+            tvBadge.text = "发现新版"
+            tvBadge.setTextColor(Color.parseColor("#10B981"))
+            tvVer.text = "v${BuildConfig.VERSION_NAME} → v${info.versionName}"
+        } else {
+            tvBadge.text = "已是最新"
+            tvBadge.setTextColor(Color.parseColor("#00E5FF"))
+            tvVer.text = "当前 v${BuildConfig.VERSION_NAME} (最新 v${info.versionName})"
+        }
+        tvSize.text = AppUpdater.formatSize(info.apkSize)
+        tvNotes.text = info.releaseNotes.ifBlank { "常规性能优化与体验改进。" }
+
+        var selectedMirror = info.mirrors.firstOrNull { it.available } ?: info.mirrors.first()
+        val density = resources.displayMetrics.density
+
+        fun renderMirrorOptions() {
+            layoutMirrors.removeAllViews()
+            info.mirrors.forEach { m ->
+                val isSelected = m.id == selectedMirror.id
+                val row = TextView(this).apply {
+                    val latencyTxt = if (m.available && m.latencyMs > 0) "${m.latencyMs} ms" else "备用/直连"
+                    text = "${if (isSelected) "●" else "○"}  ${m.name}   [$latencyTxt]"
+                    textSize = 12f
+                    setBackgroundResource(if (isSelected) R.drawable.bg_pill_active else R.drawable.bg_pill_idle)
+                    setTextColor(Color.parseColor(if (isSelected) "#00E5FF" else "#94A3B8"))
+                    val ph = (12 * density).toInt()
+                    val pv = (7 * density).toInt()
+                    setPadding(ph, pv, ph, pv)
+                    val lp = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
+                    lp.bottomMargin = (6 * density).toInt()
+                    layoutParams = lp
+                    setOnClickListener {
+                        selectedMirror = m
+                        renderMirrorOptions()
+                    }
+                }
+                layoutMirrors.addView(row)
+            }
+        }
+        renderMirrorOptions()
+
+        val cancelFlag = AtomicBoolean(false)
+        val actionLabel = if (info.hasNewVersion) "立即加速更新" else "重新下载安装"
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("在线更新 · 多 CDN 加速")
+            .setView(view)
+            .setPositiveButton(actionLabel, null)
+            .setNegativeButton("关闭") { _, _ ->
+                cancelFlag.set(true)
+            }
+            .create()
+
+        dialog.setOnShowListener {
+            val posBtn = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            posBtn.setOnClickListener {
+                posBtn.isEnabled = false
+                posBtn.text = "正在下载..."
+                layoutProgress.visibility = View.VISIBLE
+                progressBar.progress = 0
+                tvProgress.text = "正在连接 ${selectedMirror.name}..."
+
+                AppUpdater.downloadApkWithFallback(
+                    context = this,
+                    info = info,
+                    preferredMirror = selectedMirror,
+                    cancelFlag = cancelFlag,
+                    onMirrorSwitched = { m ->
+                        selectedMirror = m
+                        renderMirrorOptions()
+                        tvProgress.text = "正在使用 ${m.name} 拉取安装包..."
+                    },
+                    onProgress = { pct, cur, tot, spd ->
+                        progressBar.progress = pct
+                        val curMb = cur / (1024.0 * 1024.0)
+                        val totMb = tot.coerceAtLeast(1L) / (1024.0 * 1024.0)
+                        tvProgress.text = String.format(
+                            Locale.US,
+                            "%s · %d%% (%.2f / %.2f MB) · %s",
+                            selectedMirror.name, pct, curMb, totMb, spd
+                        )
+                    },
+                    onComplete = { apkFile ->
+                        tvProgress.text = "下载并校验完成，正在拉起系统安装..."
+                        val started = AppUpdater.installApk(this, apkFile)
+                        if (!started) {
+                            Toast.makeText(this, "请授予“安装未知应用”权限后重试", Toast.LENGTH_LONG).show()
+                        }
+                        dialog.dismiss()
+                    },
+                    onError = { err ->
+                        posBtn.isEnabled = true
+                        posBtn.text = "重试下载"
+                        tvProgress.text = "下载失败: $err"
+                    }
+                )
+            }
+        }
+        dialog.show()
+    }
+
+    // ==================== 表格与导出 ====================
     private fun setupTableSection() {
         tableAdapter = RtTableAdapter { point ->
-            // 点击表格行跳转到曲线工作台并锁定该温度点
             binding.bottomNav.selectedItemId = R.id.nav_curve
             binding.ntcCurveView.selectTemperature(point.tempC)
         }
@@ -355,6 +579,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ==================== 工程反推与分压仿真 ====================
     private fun setupToolsSection() {
         binding.etToolResInput.doAfterTextChanged { refreshReverseCalculation() }
         binding.etToolTempInput.doAfterTextChanged { refreshReverseCalculation() }
@@ -368,7 +593,9 @@ class MainActivity : AppCompatActivity() {
         binding.btnApplySolvedB.setOnClickListener {
             val bVal = computeCurrentSolvedB()
             if (bVal != null && bVal > 0) {
-                applySpec(currentSpec.copy(id = "custom_b", bValue = (bVal * 10.0).roundToInt() / 10.0))
+                val updated = currentSpec.copy(bValue = (bVal * 10.0).roundToInt() / 10.0)
+                syncQuickInputsFromSpec(updated)
+                applySpec(updated)
                 binding.bottomNav.selectedItemId = R.id.nav_curve
                 Toast.makeText(this, "已将 B=${bVal.roundToInt()}K 应用到特性曲线", Toast.LENGTH_SHORT).show()
             } else {
@@ -487,7 +714,9 @@ class MainActivity : AppCompatActivity() {
                 if (binding.ntcCurveView.showCompareCurve) compareSpec else null
             )
             val dir = File(cacheDir, "exports").apply { mkdirs() }
-            val file = File(dir, "NTC_RT_Curve_${currentSpec.partNumber.replace(Regex("[^A-Za-z0-9._-]"), "_")}.png")
+            val safeTag = currentSpec.partNumber.ifBlank { "R${trimNum(currentSpec.r25Ohm)}_B${currentSpec.bValue.roundToInt()}" }
+                .replace(Regex("[^A-Za-z0-9._-]"), "_")
+            val file = File(dir, "NTC_RT_Curve_${safeTag}.png")
             FileOutputStream(file).use { out ->
                 bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
             }
@@ -501,7 +730,9 @@ class MainActivity : AppCompatActivity() {
         try {
             val csv = NtcMathEngine.exportCsv(currentSpec, currentPoints)
             val dir = File(cacheDir, "exports").apply { mkdirs() }
-            val file = File(dir, "NTC_RT_Table_${currentSpec.partNumber.replace(Regex("[^A-Za-z0-9._-]"), "_")}.csv")
+            val safeTag = currentSpec.partNumber.ifBlank { "R${trimNum(currentSpec.r25Ohm)}_B${currentSpec.bValue.roundToInt()}" }
+                .replace(Regex("[^A-Za-z0-9._-]"), "_")
+            val file = File(dir, "NTC_RT_Table_${safeTag}.csv")
             file.writeText(csv, Charsets.UTF_8)
             shareExportFile(file, "text/csv", "分享 NTC 温度阻值特性表 (CSV)")
         } catch (e: Exception) {

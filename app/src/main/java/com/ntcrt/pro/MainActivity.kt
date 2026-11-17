@@ -19,7 +19,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.android.material.textfield.TextInputEditText
 import com.ntcrt.pro.databinding.ActivityMainBinding
@@ -76,14 +75,18 @@ class MainActivity : AppCompatActivity() {
     private fun loadSavedSpec(): NtcSpec {
         val sp = getSharedPreferences("ntc_spec_prefs", MODE_PRIVATE)
         if (!sp.contains("r25")) return NtcMathEngine.defaultSpec()
+        val legacyRTol = sp.getFloat("tolR", 17.0f).toDouble()
+        val legacyIncB = sp.getBoolean("includeB", false)
+        val legacyBTol = if (legacyIncB) sp.getFloat("tolB", 0.0f).toDouble() else 0.0
         return NtcSpec(
             manufacturer = sp.getString("manufacturer", "") ?: "",
             partNumber = sp.getString("partNumber", "") ?: "",
             r25Ohm = sp.getFloat("r25", 5.0f).toDouble(),
             bValue = sp.getFloat("bValue", 4100.0f).toDouble(),
-            r25TolerancePct = sp.getFloat("tolR", 17.0f).toDouble(),
-            bTolerancePct = sp.getFloat("tolB", 1.0f).toDouble(),
-            includeBTolerance = sp.getBoolean("includeB", false),
+            r25TolPlusPct = sp.getFloat("tolRPlus", legacyRTol.toFloat()).toDouble(),
+            r25TolMinusPct = sp.getFloat("tolRMinus", legacyRTol.toFloat()).toDouble(),
+            bTolPlusPct = sp.getFloat("tolBPlus", legacyBTol.toFloat()).toDouble(),
+            bTolMinusPct = sp.getFloat("tolBMinus", legacyBTol.toFloat()).toDouble(),
             tMin = sp.getFloat("tMin", 20.0f).toDouble(),
             tMax = sp.getFloat("tMax", 36.5f).toDouble(),
             tStep = sp.getFloat("tStep", 0.5f).toDouble()
@@ -96,9 +99,10 @@ class MainActivity : AppCompatActivity() {
             .putString("partNumber", spec.partNumber)
             .putFloat("r25", spec.r25Ohm.toFloat())
             .putFloat("bValue", spec.bValue.toFloat())
-            .putFloat("tolR", spec.r25TolerancePct.toFloat())
-            .putFloat("tolB", spec.bTolerancePct.toFloat())
-            .putBoolean("includeB", spec.includeBTolerance)
+            .putFloat("tolRPlus", spec.r25TolPlusPct.toFloat())
+            .putFloat("tolRMinus", spec.r25TolMinusPct.toFloat())
+            .putFloat("tolBPlus", spec.bTolPlusPct.toFloat())
+            .putFloat("tolBMinus", spec.bTolMinusPct.toFloat())
             .putFloat("tMin", spec.tMin.toFloat())
             .putFloat("tMax", spec.tMax.toFloat())
             .putFloat("tStep", spec.tStep.toFloat())
@@ -123,7 +127,10 @@ class MainActivity : AppCompatActivity() {
         }
         binding.etQuickR25.doAfterTextChanged { scheduleAutoApply() }
         binding.etQuickB.doAfterTextChanged { scheduleAutoApply() }
-        binding.etQuickTol.doAfterTextChanged { scheduleAutoApply() }
+        binding.etQuickRPlus.doAfterTextChanged { scheduleAutoApply() }
+        binding.etQuickRMinus.doAfterTextChanged { scheduleAutoApply() }
+        binding.etQuickBPlus.doAfterTextChanged { scheduleAutoApply() }
+        binding.etQuickBMinus.doAfterTextChanged { scheduleAutoApply() }
         binding.etQuickTMin.doAfterTextChanged { scheduleAutoApply() }
         binding.etQuickTMax.doAfterTextChanged { scheduleAutoApply() }
         binding.etQuickStep.doAfterTextChanged { scheduleAutoApply() }
@@ -138,7 +145,10 @@ class MainActivity : AppCompatActivity() {
         isQuickSyncing = true
         binding.etQuickR25.setText(trimNum(spec.r25Ohm))
         binding.etQuickB.setText(trimNum(spec.bValue))
-        binding.etQuickTol.setText(trimNum(spec.r25TolerancePct))
+        binding.etQuickRPlus.setText(trimNum(spec.r25TolPlusPct))
+        binding.etQuickRMinus.setText(trimNum(spec.r25TolMinusPct))
+        binding.etQuickBPlus.setText(trimNum(spec.bTolPlusPct))
+        binding.etQuickBMinus.setText(trimNum(spec.bTolMinusPct))
         binding.etQuickTMin.setText(trimNum(spec.tMin))
         binding.etQuickTMax.setText(trimNum(spec.tMax))
         binding.etQuickStep.setText(trimNum(spec.tStep))
@@ -148,7 +158,10 @@ class MainActivity : AppCompatActivity() {
     private fun applyFromQuickInputs(hideKeyboard: Boolean, silentError: Boolean) {
         val r25 = binding.etQuickR25.text?.toString()?.toDoubleOrNull()
         val bVal = binding.etQuickB.text?.toString()?.toDoubleOrNull()
-        val tolR = binding.etQuickTol.text?.toString()?.toDoubleOrNull() ?: 0.0
+        val rPlus = abs(binding.etQuickRPlus.text?.toString()?.toDoubleOrNull() ?: 0.0).coerceIn(0.0, 500.0)
+        val rMinus = abs(binding.etQuickRMinus.text?.toString()?.toDoubleOrNull() ?: 0.0).coerceIn(0.0, 99.9)
+        val bPlus = abs(binding.etQuickBPlus.text?.toString()?.toDoubleOrNull() ?: 0.0).coerceIn(0.0, 200.0)
+        val bMinus = abs(binding.etQuickBMinus.text?.toString()?.toDoubleOrNull() ?: 0.0).coerceIn(0.0, 99.9)
         val tMin = binding.etQuickTMin.text?.toString()?.toDoubleOrNull()
         val tMax = binding.etQuickTMax.text?.toString()?.toDoubleOrNull()
         val step = binding.etQuickStep.text?.toString()?.toDoubleOrNull()
@@ -165,7 +178,10 @@ class MainActivity : AppCompatActivity() {
         val newSpec = currentSpec.copy(
             r25Ohm = r25,
             bValue = bVal,
-            r25TolerancePct = tolR.coerceIn(0.0, 95.0),
+            r25TolPlusPct = rPlus,
+            r25TolMinusPct = rMinus,
+            bTolPlusPct = bPlus,
+            bTolMinusPct = bMinus,
             tMin = minOf(tMin, tMax),
             tMax = maxOf(tMin, tMax),
             tStep = step
@@ -443,13 +459,10 @@ class MainActivity : AppCompatActivity() {
         )
         comparePoints = NtcMathEngine.generateTable(compareSpec)
 
-        val tolLabel = if (spec.includeBTolerance) {
-            "±${trimNum(spec.r25TolerancePct)}% + ΔB±${trimNum(spec.bTolerancePct)}%"
-        } else {
-            "±${trimNum(spec.r25TolerancePct)}%"
-        }
+        val rTolLabel = NtcMathEngine.formatTolPair(spec.r25TolPlusPct, spec.r25TolMinusPct)
+        val bTolLabel = NtcMathEngine.formatTolPair(spec.bTolPlusPct, spec.bTolMinusPct)
         binding.tvTopSpecBadge.text =
-            "R25=${NtcMathEngine.formatResistanceAuto(spec.r25Ohm)} · B${spec.bValue.roundToInt()}K · $tolLabel"
+            "R25=${NtcMathEngine.formatResistanceAuto(spec.r25Ohm)}($rTolLabel) · B${spec.bValue.roundToInt()}K($bTolLabel)"
 
         isSliderSyncing = true
         if (currentPoints.size > 1) {
@@ -502,9 +515,10 @@ class MainActivity : AppCompatActivity() {
         val etPart = view.findViewById<TextInputEditText>(R.id.etDlgPartNumber)
         val etR25 = view.findViewById<TextInputEditText>(R.id.etDlgR25)
         val etB = view.findViewById<TextInputEditText>(R.id.etDlgBValue)
-        val etTolR = view.findViewById<TextInputEditText>(R.id.etDlgTolR)
-        val etTolB = view.findViewById<TextInputEditText>(R.id.etDlgTolB)
-        val swB = view.findViewById<MaterialSwitch>(R.id.swDlgIncludeB)
+        val etTolRPlus = view.findViewById<TextInputEditText>(R.id.etDlgTolRPlus)
+        val etTolRMinus = view.findViewById<TextInputEditText>(R.id.etDlgTolRMinus)
+        val etTolBPlus = view.findViewById<TextInputEditText>(R.id.etDlgTolBPlus)
+        val etTolBMinus = view.findViewById<TextInputEditText>(R.id.etDlgTolBMinus)
         val etTMin = view.findViewById<TextInputEditText>(R.id.etDlgTMin)
         val etTMax = view.findViewById<TextInputEditText>(R.id.etDlgTMax)
         val etStep = view.findViewById<TextInputEditText>(R.id.etDlgTStep)
@@ -513,9 +527,10 @@ class MainActivity : AppCompatActivity() {
         etPart.setText(currentSpec.partNumber)
         etR25.setText(trimNum(currentSpec.r25Ohm))
         etB.setText(trimNum(currentSpec.bValue))
-        etTolR.setText(trimNum(currentSpec.r25TolerancePct))
-        etTolB.setText(trimNum(currentSpec.bTolerancePct))
-        swB.isChecked = currentSpec.includeBTolerance
+        etTolRPlus.setText(trimNum(currentSpec.r25TolPlusPct))
+        etTolRMinus.setText(trimNum(currentSpec.r25TolMinusPct))
+        etTolBPlus.setText(trimNum(currentSpec.bTolPlusPct))
+        etTolBMinus.setText(trimNum(currentSpec.bTolMinusPct))
         etTMin.setText(trimNum(currentSpec.tMin))
         etTMax.setText(trimNum(currentSpec.tMax))
         etStep.setText(trimNum(currentSpec.tStep))
@@ -526,8 +541,10 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("应用并重绘") { _, _ ->
                 val r25 = etR25.text?.toString()?.toDoubleOrNull()
                 val bVal = etB.text?.toString()?.toDoubleOrNull()
-                val tolR = etTolR.text?.toString()?.toDoubleOrNull() ?: 0.0
-                val tolB = etTolB.text?.toString()?.toDoubleOrNull() ?: 0.0
+                val rPlus = abs(etTolRPlus.text?.toString()?.toDoubleOrNull() ?: 0.0).coerceIn(0.0, 500.0)
+                val rMinus = abs(etTolRMinus.text?.toString()?.toDoubleOrNull() ?: 0.0).coerceIn(0.0, 99.9)
+                val bPlus = abs(etTolBPlus.text?.toString()?.toDoubleOrNull() ?: 0.0).coerceIn(0.0, 200.0)
+                val bMinus = abs(etTolBMinus.text?.toString()?.toDoubleOrNull() ?: 0.0).coerceIn(0.0, 99.9)
                 val tMin = etTMin.text?.toString()?.toDoubleOrNull()
                 val tMax = etTMax.text?.toString()?.toDoubleOrNull()
                 val step = etStep.text?.toString()?.toDoubleOrNull()
@@ -543,9 +560,10 @@ class MainActivity : AppCompatActivity() {
                     partNumber = etPart.text?.toString()?.trim() ?: "",
                     r25Ohm = r25,
                     bValue = bVal,
-                    r25TolerancePct = tolR.coerceIn(0.0, 95.0),
-                    bTolerancePct = tolB.coerceIn(0.0, 50.0),
-                    includeBTolerance = swB.isChecked,
+                    r25TolPlusPct = rPlus,
+                    r25TolMinusPct = rMinus,
+                    bTolPlusPct = bPlus,
+                    bTolMinusPct = bMinus,
                     tMin = minOf(tMin, tMax),
                     tMax = maxOf(tMin, tMax),
                     tStep = step

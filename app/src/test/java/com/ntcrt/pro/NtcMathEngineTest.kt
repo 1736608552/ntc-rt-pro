@@ -49,21 +49,28 @@ class NtcMathEngineTest {
     }
 
     @Test
-    fun verifyBTolerancePropagationWidensAwayFrom25C() {
+    fun verifyAsymmetricR25AndBTolerances() {
         val spec = NtcSpec(
-            r25Ohm = 10000.0,
-            bValue = 3950.0,
-            r25TolerancePct = 1.0,
-            bTolerancePct = 2.0,
-            includeBTolerance = true
+            r25Ohm = 100.0,
+            bValue = 4000.0,
+            r25TolPlusPct = 15.0,
+            r25TolMinusPct = 5.0,
+            bTolPlusPct = 3.0,
+            bTolMinusPct = 1.0
         )
-        val (minAt25, maxAt25) = NtcMathEngine.resistanceBounds(25.0, spec)
-        assertEquals(9900.0, minAt25, 1e-6)
-        assertEquals(10100.0, maxAt25, 1e-6)
+        // 25℃ 下 B 公差影响为 0，严格等于 -5% 与 +15%
+        val (min25, max25) = NtcMathEngine.resistanceBounds(25.0, spec)
+        assertEquals(95.0, min25, 1e-6)
+        assertEquals(115.0, max25, 1e-6)
 
-        val (minAt85, maxAt85) = NtcMathEngine.resistanceBounds(85.0, spec)
-        val nomAt85 = NtcMathEngine.nominalResistance(85.0, 10000.0, 3950.0)
-        assertTrue(minAt85 < nomAt85 * 0.99)
-        assertTrue(maxAt85 > nomAt85 * 1.01)
+        // 低温 0℃ (<25℃)：最大值取 (R25_max=115, B_max=4120)，最小值取 (R25_min=95, B_min=3960)
+        val (min0, max0) = NtcMathEngine.resistanceBounds(0.0, spec)
+        assertEquals(NtcMathEngine.nominalResistance(0.0, 95.0, 3960.0), min0, 1e-6)
+        assertEquals(NtcMathEngine.nominalResistance(0.0, 115.0, 4120.0), max0, 1e-6)
+
+        // 高温 60℃ (>25℃)：最大值取 (R25_max=115, B_min=3960)，最小值取 (R25_min=95, B_max=4120)
+        val (min60, max60) = NtcMathEngine.resistanceBounds(60.0, spec)
+        assertEquals(NtcMathEngine.nominalResistance(60.0, 95.0, 4120.0), min60, 1e-6)
+        assertEquals(NtcMathEngine.nominalResistance(60.0, 115.0, 3960.0), max60, 1e-6)
     }
 }

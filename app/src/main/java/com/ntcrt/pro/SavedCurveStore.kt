@@ -16,7 +16,7 @@ data class SavedCurveRecord(
     val id: String,
     val title: String,
     val savedAtMs: Long,
-    val isPinned: Boolean, // true=用户手动保存的永久记录; false=最近自动快照
+    val isPinned: Boolean,
     val spec: NtcSpec
 ) {
     fun formattedTime(): String {
@@ -26,17 +26,11 @@ data class SavedCurveRecord(
 
     fun summaryLine(): String {
         val bInt = spec.bValue.roundToInt()
+        val rTol = NtcMathEngine.formatTolPair(spec.r25TolPlusPct, spec.r25TolMinusPct)
+        val bTol = NtcMathEngine.formatTolPair(spec.bTolPlusPct, spec.bTolMinusPct)
         val tMinStr = NtcMathEngine.formatTemp(spec.tMin)
         val tMaxStr = NtcMathEngine.formatTemp(spec.tMax)
-        return "R25=${NtcMathEngine.formatResistanceAuto(spec.r25Ohm)} · B=${bInt}K · ±${trimFloat(spec.r25TolerancePct)}% · ${tMinStr}~${tMaxStr}℃"
-    }
-
-    private fun trimFloat(v: Double): String {
-        return if (abs(v - v.roundToInt()) < 1e-6) {
-            v.roundToInt().toString()
-        } else {
-            String.format(Locale.US, "%.2f", v).trimEnd('0').trimEnd('.')
-        }
+        return "R25=${NtcMathEngine.formatResistanceAuto(spec.r25Ohm)} ($rTol) · B=${bInt}K ($bTol) · ${tMinStr}~${tMaxStr}℃"
     }
 }
 
@@ -58,14 +52,19 @@ object SavedCurveStore {
             for (i in 0 until arr.length()) {
                 val obj = arr.getJSONObject(i)
                 val specObj = obj.getJSONObject("spec")
+                val legacyRTol = specObj.optDouble("r25TolerancePct", 17.0)
+                val legacyIncludeB = specObj.optBoolean("includeBTolerance", false)
+                val legacyBTol = if (legacyIncludeB) specObj.optDouble("bTolerancePct", 0.0) else 0.0
+
                 val spec = NtcSpec(
                     manufacturer = specObj.optString("manufacturer", ""),
                     partNumber = specObj.optString("partNumber", ""),
                     r25Ohm = specObj.optDouble("r25Ohm", 5.0),
                     bValue = specObj.optDouble("bValue", 4100.0),
-                    r25TolerancePct = specObj.optDouble("r25TolerancePct", 17.0),
-                    bTolerancePct = specObj.optDouble("bTolerancePct", 1.0),
-                    includeBTolerance = specObj.optBoolean("includeBTolerance", false),
+                    r25TolPlusPct = specObj.optDouble("r25TolPlusPct", legacyRTol),
+                    r25TolMinusPct = specObj.optDouble("r25TolMinusPct", legacyRTol),
+                    bTolPlusPct = specObj.optDouble("bTolPlusPct", legacyBTol),
+                    bTolMinusPct = specObj.optDouble("bTolMinusPct", legacyBTol),
                     tMin = specObj.optDouble("tMin", 20.0),
                     tMax = specObj.optDouble("tMax", 36.5),
                     tStep = specObj.optDouble("tStep", 0.5)
@@ -96,9 +95,10 @@ object SavedCurveStore {
                 put("partNumber", rec.spec.partNumber)
                 put("r25Ohm", rec.spec.r25Ohm)
                 put("bValue", rec.spec.bValue)
-                put("r25TolerancePct", rec.spec.r25TolerancePct)
-                put("bTolerancePct", rec.spec.bTolerancePct)
-                put("includeBTolerance", rec.spec.includeBTolerance)
+                put("r25TolPlusPct", rec.spec.r25TolPlusPct)
+                put("r25TolMinusPct", rec.spec.r25TolMinusPct)
+                put("bTolPlusPct", rec.spec.bTolPlusPct)
+                put("bTolMinusPct", rec.spec.bTolMinusPct)
                 put("tMin", rec.spec.tMin)
                 put("tMax", rec.spec.tMax)
                 put("tStep", rec.spec.tStep)
@@ -126,9 +126,6 @@ object SavedCurveStore {
         return if (prefix.isNotEmpty()) "$prefix ($core)" else core
     }
 
-    /**
-     * 手动保存当前计算曲线（永久保留）
-     */
     fun savePinned(context: Context, spec: NtcSpec, customTitle: String): SavedCurveRecord {
         val existing = loadAll(context).toMutableList()
         val now = System.currentTimeMillis()
@@ -145,9 +142,6 @@ object SavedCurveStore {
         return rec
     }
 
-    /**
-     * 记录一次最近自动计算快照（去重且限制最多保留 MAX_RECENT_AUTO 条）
-     */
     fun recordRecentSnapshot(context: Context, spec: NtcSpec) {
         val all = loadAll(context)
         val pinned = all.filter { it.isPinned }
@@ -157,7 +151,6 @@ object SavedCurveStore {
         if (duplicateIdx >= 0) {
             recent.removeAt(duplicateIdx)
         }
-        // 如果已存在于永久保存中且核心参数一致，不重复塞入自动历史
         if (pinned.any { isSameCoreParams(it.spec, spec) }) {
             return
         }
@@ -173,8 +166,7 @@ object SavedCurveStore {
                 spec = spec
             )
         )
-        val trimmedRecent = recent.take(MAX_RECENT_AUTO)
-        saveAll(context, pinned + trimmedRecent)
+        saveAll(context, pinned + recent.take(MAX_RECENT_AUTO))
     }
 
     fun deleteById(context: Context, id: String) {
@@ -185,10 +177,12 @@ object SavedCurveStore {
     fun isSameCoreParams(a: NtcSpec, b: NtcSpec): Boolean {
         return abs(a.r25Ohm - b.r25Ohm) < 1e-6 &&
             abs(a.bValue - b.bValue) < 1e-4 &&
-            abs(a.r25TolerancePct - b.r25TolerancePct) < 1e-4 &&
+            abs(a.r25TolPlusPct - b.r25TolPlusPct) < 1e-4 &&
+            abs(a.r25TolMinusPct - b.r25TolMinusPct) < 1e-4 &&
+            abs(a.bTolPlusPct - b.bTolPlusPct) < 1e-4 &&
+            abs(a.bTolMinusPct - b.bTolMinusPct) < 1e-4 &&
             abs(a.tMin - b.tMin) < 1e-4 &&
             abs(a.tMax - b.tMax) < 1e-4 &&
-            abs(a.tStep - b.tStep) < 1e-4 &&
-            a.includeBTolerance == b.includeBTolerance
+            abs(a.tStep - b.tStep) < 1e-4
     }
 }

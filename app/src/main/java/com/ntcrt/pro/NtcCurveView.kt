@@ -496,8 +496,10 @@ class NtcCurveView @JvmOverloads constructor(
             dp(28f) * scale,
             titlePaint
         )
+        val rTolTxt = NtcMathEngine.formatTolPair(spec.r25TolPlusPct, spec.r25TolMinusPct)
+        val bTolTxt = NtcMathEngine.formatTolPair(spec.bTolPlusPct, spec.bTolMinusPct)
         canvas.drawText(
-            "R25=${NtcMathEngine.formatResistanceAuto(spec.r25Ohm)} (±${spec.r25TolerancePct}%)  |  B=${spec.bValue.roundToInt()}K  |  范围: ${NtcMathEngine.formatTemp(spec.tMin)}~${NtcMathEngine.formatTemp(spec.tMax)}℃",
+            "R25=${NtcMathEngine.formatResistanceAuto(spec.r25Ohm)} ($rTolTxt)  |  B=${spec.bValue.roundToInt()}K ($bTolTxt)  |  范围: ${NtcMathEngine.formatTemp(spec.tMin)}~${NtcMathEngine.formatTemp(spec.tMax)}℃",
             dp(24f) * scale,
             dp(50f) * scale,
             subPaint

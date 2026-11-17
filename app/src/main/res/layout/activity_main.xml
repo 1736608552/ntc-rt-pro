@@ -51,7 +51,7 @@
                     android:fontFamily="monospace"
                     android:paddingHorizontal="8dp"
                     android:paddingVertical="2dp"
-                    android:text="v1.2.0"
+                    android:text="v1.3.0"
                     android:textColor="@color/lab_cyan"
                     android:textSize="10.5sp"
                     android:textStyle="bold" />
@@ -135,6 +135,7 @@
                     android:paddingHorizontal="10dp"
                     android:paddingVertical="10dp">
 
+                    <!-- 第1行：标称基准参数 -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -146,32 +147,14 @@
                             android:layout_height="wrap_content"
                             android:layout_marginEnd="4dp"
                             android:layout_weight="1"
-                            android:hint="R25 (Ω)">
+                            android:hint="R25 阻值 (Ω)">
                             <com.google.android.material.textfield.TextInputEditText
                                 android:id="@+id/etQuickR25"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:fontFamily="monospace"
                                 android:inputType="numberDecimal"
-                                android:paddingVertical="8dp"
-                                android:textColor="@color/lab_text_primary"
-                                android:textSize="12.5sp" />
-                        </com.google.android.material.textfield.TextInputLayout>
-
-                        <com.google.android.material.textfield.TextInputLayout
-                            style="@style/LabInputLayout"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginHorizontal="4dp"
-                            android:layout_weight="1"
-                            android:hint="B 值 (K)">
-                            <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etQuickB"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:fontFamily="monospace"
-                                android:inputType="numberDecimal"
-                                android:paddingVertical="8dp"
+                                android:paddingVertical="7dp"
                                 android:textColor="@color/lab_text_primary"
                                 android:textSize="12.5sp" />
                         </com.google.android.material.textfield.TextInputLayout>
@@ -181,17 +164,97 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_marginStart="4dp"
-                            android:layout_weight="0.85"
-                            android:hint="公差 (±%)">
+                            android:layout_weight="1"
+                            android:hint="B 值 (K)">
                             <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etQuickTol"
+                                android:id="@+id/etQuickB"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:fontFamily="monospace"
                                 android:inputType="numberDecimal"
-                                android:paddingVertical="8dp"
+                                android:paddingVertical="7dp"
                                 android:textColor="@color/lab_text_primary"
                                 android:textSize="12.5sp" />
+                        </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
+
+                    <!-- 第2行：阻值正负公差 & B值正负公差 独立输入 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/LabInputLayout"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="3dp"
+                            android:layout_weight="1"
+                            android:hint="阻值+(%)">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etQuickRPlus"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:inputType="numberDecimal"
+                                android:paddingVertical="7dp"
+                                android:textColor="@color/lab_amber"
+                                android:textSize="12sp" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/LabInputLayout"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginHorizontal="3dp"
+                            android:layout_weight="1"
+                            android:hint="阻值-(%)">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etQuickRMinus"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:inputType="numberDecimal"
+                                android:paddingVertical="7dp"
+                                android:textColor="@color/lab_emerald"
+                                android:textSize="12sp" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/LabInputLayout"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginHorizontal="3dp"
+                            android:layout_weight="1"
+                            android:hint="B+(%)">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etQuickBPlus"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:inputType="numberDecimal"
+                                android:paddingVertical="7dp"
+                                android:textColor="@color/lab_amber"
+                                android:textSize="12sp" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/LabInputLayout"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="3dp"
+                            android:layout_weight="1"
+                            android:hint="B-(%)">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etQuickBMinus"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:inputType="numberDecimal"
+                                android:paddingVertical="7dp"
+                                android:textColor="@color/lab_emerald"
+                                android:textSize="12sp" />
                         </com.google.android.material.textfield.TextInputLayout>
                     </LinearLayout>
 

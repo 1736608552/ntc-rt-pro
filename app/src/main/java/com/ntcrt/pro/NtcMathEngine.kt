@@ -7,16 +7,17 @@ import kotlin.math.ln
 import kotlin.math.roundToInt
 
 /**
- * NTC 热敏电阻规格参数配置
+ * NTC 热敏电阻规格参数配置（支持非对称 R25 与 B 值正负公差）
  */
 data class NtcSpec(
     val manufacturer: String = "",
     val partNumber: String = "",
     val r25Ohm: Double = 5.0,
     val bValue: Double = 4100.0,
-    val r25TolerancePct: Double = 17.0,
-    val bTolerancePct: Double = 1.0,
-    val includeBTolerance: Boolean = false,
+    val r25TolPlusPct: Double = 17.0,
+    val r25TolMinusPct: Double = 17.0,
+    val bTolPlusPct: Double = 0.0,
+    val bTolMinusPct: Double = 0.0,
     val tMin: Double = 20.0,
     val tMax: Double = 36.5,
     val tStep: Double = 0.5
@@ -54,7 +55,7 @@ data class DividerPoint(
 )
 
 /**
- * NTC 精密计算引擎：B 值方程、双向反推、误差传播、分压仿真及报表生成
+ * NTC 精密计算引擎：B 值方程、非对称正负公差极值传播、双向反推、分压仿真及报表生成
  */
 object NtcMathEngine {
 
@@ -66,9 +67,10 @@ object NtcMathEngine {
         partNumber = "",
         r25Ohm = 5.0,
         bValue = 4100.0,
-        r25TolerancePct = 17.0,
-        bTolerancePct = 1.0,
-        includeBTolerance = false,
+        r25TolPlusPct = 17.0,
+        r25TolMinusPct = 17.0,
+        bTolPlusPct = 0.0,
+        bTolMinusPct = 0.0,
         tMin = 20.0,
         tMax = 36.5,
         tStep = 0.5
@@ -86,19 +88,24 @@ object NtcMathEngine {
     }
 
     /**
-     * 计算单点阻值上下限（支持仅 R25 固定公差，或叠加 B 值公差的精确极值传播）
+     * 计算单点阻值上下限（严格结合 R25 正负公差与 B 值正负公差）
      */
     fun resistanceBounds(tempC: Double, spec: NtcSpec): Pair<Double, Double> {
-        val tolR = (spec.r25TolerancePct / 100.0).coerceIn(0.0, 0.99)
-        val rNom = nominalResistance(tempC, spec.r25Ohm, spec.bValue)
-        if (!spec.includeBTolerance || spec.bTolerancePct <= 0.0) {
-            return (rNom * (1.0 - tolR)) to (rNom * (1.0 + tolR))
+        val rPlus = (abs(spec.r25TolPlusPct) / 100.0).coerceIn(0.0, 10.0)
+        val rMinus = (abs(spec.r25TolMinusPct) / 100.0).coerceIn(0.0, 0.999)
+        val bPlus = (abs(spec.bTolPlusPct) / 100.0).coerceIn(0.0, 10.0)
+        val bMinus = (abs(spec.bTolMinusPct) / 100.0).coerceIn(0.0, 0.999)
+
+        val r25Min = spec.r25Ohm * (1.0 - rMinus)
+        val r25Max = spec.r25Ohm * (1.0 + rPlus)
+
+        if (bPlus <= 0.0 && bMinus <= 0.0) {
+            val base = nominalResistance(tempC, 1.0, spec.bValue)
+            return (r25Min * base) to (r25Max * base)
         }
-        val tolB = (spec.bTolerancePct / 100.0).coerceIn(0.0, 0.99)
-        val r25Min = spec.r25Ohm * (1.0 - tolR)
-        val r25Max = spec.r25Ohm * (1.0 + tolR)
-        val bMin = spec.bValue * (1.0 - tolB)
-        val bMax = spec.bValue * (1.0 + tolB)
+
+        val bMin = spec.bValue * (1.0 - bMinus)
+        val bMax = spec.bValue * (1.0 + bPlus)
 
         val candidates = listOf(
             nominalResistance(tempC, r25Min, bMin),
@@ -161,14 +168,17 @@ object NtcMathEngine {
     }
 
     /**
-     * 根据实测阻值及器件公差带，反算中心温度与可能温度偏差范围
+     * 根据实测阻值及器件非对称公差带，反算中心温度与可能温度偏差范围
      */
     fun reverseSolveTemperature(resistanceOhm: Double, spec: NtcSpec): ReverseTempResult {
         val tNom = temperatureFromResistance(resistanceOhm, spec.r25Ohm, spec.bValue)
-        val tolR = (spec.r25TolerancePct / 100.0).coerceIn(0.0, 0.99)
-        val tolB = if (spec.includeBTolerance) (spec.bTolerancePct / 100.0).coerceIn(0.0, 0.99) else 0.0
-        val r25Candidates = listOf(spec.r25Ohm * (1.0 - tolR), spec.r25Ohm * (1.0 + tolR))
-        val bCandidates = listOf(spec.bValue * (1.0 - tolB), spec.bValue * (1.0 + tolB))
+        val rPlus = (abs(spec.r25TolPlusPct) / 100.0).coerceIn(0.0, 10.0)
+        val rMinus = (abs(spec.r25TolMinusPct) / 100.0).coerceIn(0.0, 0.999)
+        val bPlus = (abs(spec.bTolPlusPct) / 100.0).coerceIn(0.0, 10.0)
+        val bMinus = (abs(spec.bTolMinusPct) / 100.0).coerceIn(0.0, 0.999)
+
+        val r25Candidates = listOf(spec.r25Ohm * (1.0 - rMinus), spec.r25Ohm * (1.0 + rPlus))
+        val bCandidates = listOf(spec.bValue * (1.0 - bMinus), spec.bValue * (1.0 + bPlus))
         val temps = ArrayList<Double>(4)
         for (r25c in r25Candidates) {
             for (bc in bCandidates) {
@@ -244,6 +254,20 @@ object NtcMathEngine {
         }
     }
 
+    fun formatTolPair(plusPct: Double, minusPct: Double): String {
+        val p = trimTol(plusPct)
+        val m = trimTol(minusPct)
+        return if (abs(plusPct - minusPct) < 1e-6) "±$p%" else "+$p%/-$m%"
+    }
+
+    private fun trimTol(v: Double): String {
+        return if (abs(v - v.roundToInt()) < 1e-6) {
+            v.roundToInt().toString()
+        } else {
+            String.format(Locale.US, "%.2f", v).trimEnd('0').trimEnd('.')
+        }
+    }
+
     fun specTitlePrefix(spec: NtcSpec): String {
         val parts = listOf(spec.manufacturer.trim(), spec.partNumber.trim()).filter { it.isNotEmpty() }
         return if (parts.isEmpty()) "NTC R-T 特性分析" else parts.joinToString(" · ")
@@ -253,7 +277,9 @@ object NtcMathEngine {
         val sb = StringBuilder()
         sb.append('\uFEFF')
         sb.appendLine("# ${specTitlePrefix(spec)}")
-        sb.appendLine("# R25(Ω),${spec.r25Ohm},B值(K),${spec.bValue},R25公差(±%),${spec.r25TolerancePct},叠加B值公差,${if (spec.includeBTolerance) "是(±${spec.bTolerancePct}%)" else "否"}")
+        sb.appendLine(
+            "# R25(Ω),${spec.r25Ohm},R25公差,+${spec.r25TolPlusPct}% / -${spec.r25TolMinusPct}%,B值(K),${spec.bValue},B值公差,+${spec.bTolPlusPct}% / -${spec.bTolMinusPct}%"
+        )
         sb.appendLine("温度 T(℃),下限 R_min(Ω),标称阻值 R_nom(Ω),上限 R_max(Ω),灵敏度 α(%/℃)")
         for (pt in points) {
             sb.appendLine(
@@ -269,8 +295,10 @@ object NtcMathEngine {
 
     fun exportMarkdown(spec: NtcSpec, points: List<RtPoint>): String {
         val sb = StringBuilder()
+        val rTolStr = formatTolPair(spec.r25TolPlusPct, spec.r25TolMinusPct)
+        val bTolStr = formatTolPair(spec.bTolPlusPct, spec.bTolMinusPct)
         sb.appendLine("### ${specTitlePrefix(spec)}")
-        sb.appendLine("- 参数：`R25 = ${spec.r25Ohm} Ω (±${spec.r25TolerancePct}%)`，`B = ${spec.bValue} K`")
+        sb.appendLine("- 参数：`R25 = ${spec.r25Ohm} Ω ($rTolStr)`，`B = ${spec.bValue} K ($bTolStr)`")
         sb.appendLine()
         sb.appendLine("| 温度 T (℃) | 下限 R_min (Ω) | 标称 R_nom (Ω) | 上限 R_max (Ω) | α (%/℃) |")
         sb.appendLine("| :---: | :---: | :---: | :---: | :---: |")
@@ -289,9 +317,11 @@ object NtcMathEngine {
     fun exportCLookupTable(spec: NtcSpec, points: List<RtPoint>): String {
         val sb = StringBuilder()
         val count = points.size
+        val rTolStr = formatTolPair(spec.r25TolPlusPct, spec.r25TolMinusPct)
+        val bTolStr = formatTolPair(spec.bTolPlusPct, spec.bTolMinusPct)
         sb.appendLine("/**")
         sb.appendLine(" * ${specTitlePrefix(spec)} LUT")
-        sb.appendLine(" * R25 = ${spec.r25Ohm} Ohm (±${spec.r25TolerancePct}%), B = ${spec.bValue} K")
+        sb.appendLine(" * R25 = ${spec.r25Ohm} Ohm ($rTolStr), B = ${spec.bValue} K ($bTolStr)")
         sb.appendLine(" * Range: ${formatTemp(spec.tMin)} C .. ${formatTemp(spec.tMax)} C, Step: ${spec.tStep} C")
         sb.appendLine(" */")
         sb.appendLine("#include <stdint.h>")

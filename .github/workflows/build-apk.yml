@@ -60,26 +60,26 @@ jobs:
           rm -f app/release.keystore
           mkdir -p release-apks
           APK_SRC=$(ls app/build/outputs/apk/release/*.apk | head -n 1)
-          cp "$APK_SRC" release-apks/NTC-RT-Pro-v1.2.0.apk
+          cp "$APK_SRC" release-apks/NTC-RT-Pro-v1.3.0.apk
 
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)
           if [ -n "$APKSIGNER" ]; then
-            "$APKSIGNER" verify --print-certs release-apks/NTC-RT-Pro-v1.2.0.apk
+            "$APKSIGNER" verify --print-certs release-apks/NTC-RT-Pro-v1.3.0.apk
           fi
 
-          export APK_SIZE=$(stat -c%s release-apks/NTC-RT-Pro-v1.2.0.apk)
+          export APK_SIZE=$(stat -c%s release-apks/NTC-RT-Pro-v1.3.0.apk)
           export PUB_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           python3 -c '
           import json, os
           repo = os.environ["GITHUB_REPO"]
           data = {
-              "versionCode": 3,
-              "versionName": "1.2.0",
-              "apkName": "NTC-RT-Pro-v1.2.0.apk",
+              "versionCode": 4,
+              "versionName": "1.3.0",
+              "apkName": "NTC-RT-Pro-v1.3.0.apk",
               "apkSize": int(os.environ["APK_SIZE"]),
-              "downloadUrl": f"https://github.com/{repo}/releases/download/v1.2.0/NTC-RT-Pro-v1.2.0.apk",
+              "downloadUrl": f"https://github.com/{repo}/releases/download/v1.3.0/NTC-RT-Pro-v1.3.0.apk",
               "publishedAt": os.environ["PUB_AT"],
-              "releaseNotes": "1. 移除所有内置对比预设选项，新增「存曲线」与本地计算档案库；\n2. 自动保存最近计算历史，支持将之前算过的任意曲线一键设为对比或重新载入；\n3. 支持在对比窗口直接输入自定义 R25 与 B 值临时对比；\n4. 支持多 CDN 在线一键升级。"
+              "releaseNotes": "1. 新增阻值正负公差 (阻值+ / 阻值-) 与 B值正负公差 (B+ / B-) 四个独立输入框；\n2. 严格按非对称四向公差角点计算全温区上下限与温度误差带；\n3. 曲线档案与历史记录全面兼容非对称正负公差显示与保存。"
           }
           with open("release-apks/version.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
@@ -90,28 +90,27 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NTC-RT-Pro-APK-v1.2.0
+          name: NTC-RT-Pro-APK-v1.3.0
           path: release-apks/*
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
         with:
-          tag_name: v1.2.0
-          name: "NTC R-T Pro v1.2.0 — 历史计算存档与自由对比版"
+          tag_name: v1.3.0
+          name: "NTC R-T Pro v1.3.0 — 非对称正负公差独立输入版"
           body: |
-            ### 🔬 NTC R-T Pro v1.2.0
+            ### 🔬 NTC R-T Pro v1.3.0
 
-            #### ✨ 本版升级亮点
-            1. **计算结果可保存 & 历史档案对比**：
-               - 移除内置固定 B 值对比列表，曲线下方新增 **`存曲线`** 按钮，可随时命名保存当前算出的曲线参数；
-               - 自动记忆最近计算快照（`[历史]`），点开 **`对比`** 即可把以前算出的任意曲线设为对比（洋红虚线）或重新载入编辑；
-               - 对比窗口内也支持直接输入任意临时 `R25` 和 `B` 值进行对比。
-            2. **正式签名 + 多 CDN 在线更新**：
-               - 与 `v1.1.0` 使用同一正式 Release Keystore 签名，支持 App 内点击版本徽章直接在线覆盖安装！
+            #### ✨ 本版升级特性
+            1. **B 值与阻值正负公差全部独立输入**：
+               - 主界面直接提供 **`阻值+(%)`**、**`阻值-(%)`**、**`B+(%)`**、**`B-(%)`** 四个独立输入框（高级调参弹窗同步支持）；
+               - 非对称正负公差实时参与全温区阻值上下限包络及反推温度误差窗口计算，填入即生效，填 `0` 即不叠加。
+            2. **多 CDN 一键覆盖升级**：
+               - 与 `v1.1.0`/`v1.2.0` 共用同一正式 Release Keystore 签名，直接在 App 内点版本徽章即可在线升级。
 
             #### 📥 安装使用
-            - 如已安装 `v1.1.0`，可在 App 内直接点左上角 **`v1.1.0`** 通过多 CDN 加速在线更新至 `v1.2.0`，或下载下方 **`NTC-RT-Pro-v1.2.0.apk`** 覆盖安装。
+            - 如已安装 `v1.1.0`/`v1.2.0`，可在 App 内直接在线更新至 `v1.3.0`，或下载下方 **`NTC-RT-Pro-v1.3.0.apk`** 覆盖安装。
           files: release-apks/*
           draft: false
           prerelease: false
